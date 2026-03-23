@@ -1,0 +1,1 @@
+#remove emojis, lower case etc
