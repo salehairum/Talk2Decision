@@ -1,49 +1,58 @@
 [
     {
         "subtype": "channel_join",
-        "user": "U0AMZS4QFPS",
-        "text": "<@U0AMZS4QFPS> has joined the channel",
+        "user": "U0AM96YH9KN",
+        "text": "<@U0AM96YH9KN> has joined the channel",
         "type": "message",
-        "ts": "1773765892.735399"
+        "ts": "1774273672.135749"
     },
     {
         "subtype": "channel_join",
         "user": "U0ALQ67K6NB",
         "text": "<@U0ALQ67K6NB> has joined the channel",
+        "inviter": "U0AM96YH9KN",
         "type": "message",
-        "ts": "1773766001.778619"
+        "ts": "1774273678.212499"
     },
     {
+        "subtype": "channel_join",
         "user": "U0AMZS4QFPS",
+        "text": "<@U0AMZS4QFPS> has joined the channel",
+        "inviter": "U0AM96YH9KN",
         "type": "message",
-        "ts": "1773766062.735799",
-        "client_msg_id": "125e1387-dffb-4090-bfb4-3c3a6b6c6caa",
-        "text": "acha these channels were created by default",
+        "ts": "1774273678.346479"
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774273933.919629",
+        "client_msg_id": "895613be-d24a-4842-ac91-04d68c44d272",
+        "text": "We need to finalize the frontend theme today.",
         "team": "T0AM3GK8CP8",
         "user_team": "T0AM3GK8CP8",
         "source_team": "T0AM3GK8CP8",
         "user_profile": {
-            "avatar_hash": "g227bcffb66f",
-            "image_72": "https:\/\/secure.gravatar.com\/avatar\/227bcffb66f270751c38c29abc93bd43.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0019-72.png",
-            "first_name": "Saleha",
-            "real_name": "Saleha Irum",
-            "display_name": "",
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
             "team": "T0AM3GK8CP8",
-            "name": "k224360",
+            "name": "i221046",
             "is_restricted": false,
             "is_ultra_restricted": false
         },
         "blocks": [
             {
                 "type": "rich_text",
-                "block_id": "ZoQ9k",
+                "block_id": "Sz0hQ",
                 "elements": [
                     {
                         "type": "rich_text_section",
                         "elements": [
                             {
                                 "type": "text",
-                                "text": "acha these channels were created by default"
+                                "text": "We need to finalize the frontend theme today."
                             }
                         ]
                     }
@@ -52,41 +61,509 @@
         ]
     },
     {
-        "user": "U0AMZS4QFPS",
+        "user": "U0AM96YH9KN",
         "type": "message",
-        "ts": "1773766071.301369",
-        "client_msg_id": "9f2481ff-ad10-4bb3-a431-90edd79fead9",
-        "text": "adding ik do msg just to see how the export works",
+        "ts": "1774273999.471949",
+        "client_msg_id": "862c0082-4667-4519-9793-0a3e993ba56f",
+        "text": "Yeah current one feels too plain.",
         "team": "T0AM3GK8CP8",
         "user_team": "T0AM3GK8CP8",
         "source_team": "T0AM3GK8CP8",
         "user_profile": {
-            "avatar_hash": "g227bcffb66f",
-            "image_72": "https:\/\/secure.gravatar.com\/avatar\/227bcffb66f270751c38c29abc93bd43.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0019-72.png",
-            "first_name": "Saleha",
-            "real_name": "Saleha Irum",
-            "display_name": "",
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
             "team": "T0AM3GK8CP8",
-            "name": "k224360",
+            "name": "i221046",
             "is_restricted": false,
             "is_ultra_restricted": false
         },
         "blocks": [
             {
                 "type": "rich_text",
-                "block_id": "jShjk",
+                "block_id": "PciVI",
                 "elements": [
                     {
                         "type": "rich_text_section",
                         "elements": [
                             {
                                 "type": "text",
-                                "text": "adding ik do msg just to see how the export works"
+                                "text": "Yeah current one feels too plain."
                             }
                         ]
                     }
                 ]
             }
         ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274010.976869",
+        "client_msg_id": "70009f28-bde7-42da-b009-b5c9b79fe3ab",
+        "text": "I was thinking maybe dark mode as default?",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "JYtOR",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "I was thinking maybe dark mode as default?"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274028.412139",
+        "client_msg_id": "86029cca-9d2c-4085-b2a1-975f36dc18d2",
+        "text": "Dark mode is trendy but not always readable.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "nsHI5",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Dark mode is trendy but not always readable."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274040.707789",
+        "client_msg_id": "4fd3d95d-d0b3-4683-9f59-8d72f0c24c0d",
+        "text": "What about light theme with blue accents?",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "L6I0r",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "What about light theme with blue accents?"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274067.895199",
+        "client_msg_id": "f647ad15-e6d1-40ec-a3f7-9bdbfb7f2571",
+        "text": "Blue looks professional tbh.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "oGiqX",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Blue looks professional tbh."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274078.704179",
+        "client_msg_id": "22b57c3b-457a-4125-91a8-cd9a0258110c",
+        "text": "We can also consider purple, looks modern.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "lknrX",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "We can also consider purple, looks modern."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274096.029779",
+        "client_msg_id": "8fb9a999-2c76-4f01-9705-85eb2310dd66",
+        "text": "Purple might be too flashy for our use case.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "PSWVf",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Purple might be too flashy for our use case."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274105.411009",
+        "client_msg_id": "62c722a7-a11f-49ef-8441-531974f93271",
+        "text": "Agree, we want something clean and simple.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "sFg7L",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Agree, we want something clean and simple."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274116.096579",
+        "client_msg_id": "d480fc9c-a77a-42cc-ae89-2e76a66056d3",
+        "text": "Blue + white combo is safe and clean.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "bFHFR",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Blue + white combo is safe and clean."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274125.026309",
+        "client_msg_id": "d6990d2f-3c1a-4b33-9e56-d75514acf7a2",
+        "text": "Okay I am convinced, blue works.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "WkeVT",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Okay I am convinced, blue works."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274135.097059",
+        "client_msg_id": "a837fb16-7d00-42a4-a61a-573e08dc26fd",
+        "text": "So final decision: light theme with blue accents.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "A8JIP",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "So final decision: light theme with blue accents."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274148.976839",
+        "client_msg_id": "40dd9e7a-088c-41d7-9602-3e68a10411e0",
+        "text": "Yes let's lock that.",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "62I87",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Yes let's lock that."
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774274159.971459",
+        "client_msg_id": "4552c990-1e75-4da1-9d2d-9cfe47a10987",
+        "text": "Done :+1:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "1CKvC",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "Done "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "+1",
+                                "unicode": "1f44d"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "subtype": "channel_join",
+        "user": "U0ANCT4MA7N",
+        "text": "<@U0ANCT4MA7N> has joined the channel",
+        "type": "message",
+        "ts": "1774274818.799549"
     }
 ]
