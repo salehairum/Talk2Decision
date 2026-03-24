@@ -1,0 +1,92 @@
+[
+    {
+        "subtype": "channel_join",
+        "user": "U0AMZS4QFPS",
+        "text": "<@U0AMZS4QFPS> has joined the channel",
+        "type": "message",
+        "ts": "1773765892.735399"
+    },
+    {
+        "subtype": "channel_join",
+        "user": "U0ALQ67K6NB",
+        "text": "<@U0ALQ67K6NB> has joined the channel",
+        "type": "message",
+        "ts": "1773766001.778619"
+    },
+    {
+        "user": "U0AMZS4QFPS",
+        "type": "message",
+        "ts": "1773766062.735799",
+        "client_msg_id": "125e1387-dffb-4090-bfb4-3c3a6b6c6caa",
+        "text": "acha these channels were created by default",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g227bcffb66f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/227bcffb66f270751c38c29abc93bd43.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0019-72.png",
+            "first_name": "Saleha",
+            "real_name": "Saleha Irum",
+            "display_name": "",
+            "team": "T0AM3GK8CP8",
+            "name": "k224360",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "ZoQ9k",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "acha these channels were created by default"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AMZS4QFPS",
+        "type": "message",
+        "ts": "1773766071.301369",
+        "client_msg_id": "9f2481ff-ad10-4bb3-a431-90edd79fead9",
+        "text": "adding ik do msg just to see how the export works",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g227bcffb66f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/227bcffb66f270751c38c29abc93bd43.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0019-72.png",
+            "first_name": "Saleha",
+            "real_name": "Saleha Irum",
+            "display_name": "",
+            "team": "T0AM3GK8CP8",
+            "name": "k224360",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "jShjk",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "adding ik do msg just to see how the export works"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+]
