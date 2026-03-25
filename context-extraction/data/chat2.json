@@ -1,0 +1,595 @@
+[
+    {
+        "user": "U0ALQ67K6NB",
+        "type": "message",
+        "ts": "1774425846.777899",
+        "client_msg_id": "24ee21ff-6392-45c2-8893-c3de04e00a39",
+        "text": "hmm hi there asf talking to yourself i see",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "a46821df2ce3",
+            "image_72": "https:\/\/avatars.slack-edge.com\/2026-03-17\/10717605577046_a46821df2ce3d7af6951_72.jpg",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "noor.2205.nf",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "iI2sI",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "hmm hi there asf talking to yourself i see"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "subtype": "channel_join",
+        "user": "U0ANJD50LH1",
+        "text": "<@U0ANJD50LH1> has joined the channel",
+        "type": "message",
+        "ts": "1774428060.996889"
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428116.893289",
+        "client_msg_id": "fd6832bb-6c87-491f-b943-038a9b785857",
+        "text": "how the hell do the emojis work man :slightly_smiling_face::wink:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "AiA9i",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "how the hell do the emojis work man "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "slightly_smiling_face",
+                                "unicode": "1f642"
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "wink",
+                                "unicode": "1f609"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428162.192199",
+        "client_msg_id": "70e84aa7-9831-44e5-8b77-d7d18c3e0fe2",
+        "text": "abeyy i still cant see the option to export chats :cry: :skull:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "kzDT\/",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "abeyy i still cant see the option to export chats "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "cry",
+                                "unicode": "1f622"
+                            },
+                            {
+                                "type": "text",
+                                "text": " "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "skull",
+                                "unicode": "1f480"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0AM96YH9KN",
+        "type": "message",
+        "ts": "1774428573.964899",
+        "client_msg_id": "e1306818-d2ed-421d-8a31-a0824a481d66",
+        "text": "why u using my channel delete those msgs",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "g6c09bca8548",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/6c09bca8548d68a0250cd7f09afe164d.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0013-72.png",
+            "first_name": "Afsah",
+            "real_name": "Afsah Areeb",
+            "display_name": "Afsah Areeb",
+            "team": "T0AM3GK8CP8",
+            "name": "i221046",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "fvJic",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "why u using my channel delete those msgs"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428639.875389",
+        "client_msg_id": "cb7868ed-96d4-4fc7-a8b7-85398cb7f16c",
+        "text": "haww",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "7IK0b",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "haww"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428652.890049",
+        "client_msg_id": "498ff983-8739-4238-a840-3dfe12beb2a5",
+        "text": "why would u say that friend :sob:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "cjCbc",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "why would u say that friend "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "sob",
+                                "unicode": "1f62d"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428666.282189",
+        "client_msg_id": "e4d1d04f-9381-4b93-b0ee-06b3e5754d8c",
+        "text": "lets die together :skull_and_crossbones:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "USb09",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "lets die together "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "skull_and_crossbones",
+                                "unicode": "2620-fe0f"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428734.344139",
+        "client_msg_id": "7fd428d7-e9ef-4540-9369-5c82b0206f5a",
+        "text": "take me back to the night we met :heart:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "E+BxV",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "take me back to the night we met "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "heart",
+                                "unicode": "2764-fe0f"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428766.775169",
+        "client_msg_id": "22d3a3bf-a68c-471f-a536-ff4905b24644",
+        "text": "I love you :heartbeat:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "7AGqr",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "I love you "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "heartbeat",
+                                "unicode": "1f493"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428796.946919",
+        "client_msg_id": "d4c7c01e-e10a-400b-b806-85804b8cc55a",
+        "text": "cuz you are a sky full of stars :star:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "DKPp\/",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "cuz you are a sky full of stars "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "star",
+                                "unicode": "2b50"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428807.911609",
+        "client_msg_id": "57e21e4c-ac3b-43f6-be16-e4df3274a6e7",
+        "text": "I am going to give you my heart :two_hearts:",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "TcvMP",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "I am going to give you my heart "
+                            },
+                            {
+                                "type": "emoji",
+                                "name": "two_hearts",
+                                "unicode": "1f495"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428881.681829",
+        "client_msg_id": "ff0dfe7b-9e70-4df3-96c0-209c7e2dc817",
+        "text": "I wanna die in your arms",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "Ubcef",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "I wanna die in your arms"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428911.312859",
+        "client_msg_id": "574fd3bd-96df-425e-a910-131b2ed90347",
+        "text": "I dont care go on and tear me apart",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "DCOV4",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "I dont care go on and tear me apart"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "user": "U0ANJD50LH1",
+        "type": "message",
+        "ts": "1774428919.125949",
+        "client_msg_id": "2e8c70e3-f08f-4076-9f2c-d4f81dc0dde1",
+        "text": "i dont care if you do",
+        "team": "T0AM3GK8CP8",
+        "user_team": "T0AM3GK8CP8",
+        "source_team": "T0AM3GK8CP8",
+        "user_profile": {
+            "avatar_hash": "gc7b6b2e531f",
+            "image_72": "https:\/\/secure.gravatar.com\/avatar\/c7b6b2e531f197cdc9e6e555836fe74a.jpg?s=72&d=https%3A%2F%2Fa.slack-edge.com%2Fdf10d%2Fimg%2Favatars%2Fava_0005-72.png",
+            "first_name": "Noor",
+            "real_name": "Noor Fatima",
+            "display_name": "Noor Fatima",
+            "team": "T0AM3GK8CP8",
+            "name": "i221036178",
+            "is_restricted": false,
+            "is_ultra_restricted": false
+        },
+        "blocks": [
+            {
+                "type": "rich_text",
+                "block_id": "4RHL7",
+                "elements": [
+                    {
+                        "type": "rich_text_section",
+                        "elements": [
+                            {
+                                "type": "text",
+                                "text": "i dont care if you do"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+]
