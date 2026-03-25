@@ -7,7 +7,7 @@ already been loaded by loader.py.
 Pipeline (in order):
     1.  Unicode normalisation     NFKC — smart quotes, accents, nbsp, etc.
     2.  Slack code block strip    ```...```  →  removed
-    3.  Decision emoji convert    👍 → thumbs_up  (before general emoji removal)
+    3.  Emoji shortcode handler  :thumbsup:→yes  :fire:→removed  unknown→removed
     4.  Emoji removal             all remaining unicode emoji stripped
     5.  Slack mention resolver    <@UID>  →  @Name
     6.  URL stripper              <http://...>  →  removed
@@ -36,7 +36,8 @@ Usage:
 import re
 import unicodedata
 from copy import deepcopy
-
+import json
+from pathlib import Path
 
 # ══════════════════════════════════════════════════════════════════
 # 1. Slack-specific patterns
@@ -50,68 +51,63 @@ _SLACK_INLINE_FMT = re.compile(r"[*_~`]")
 
 
 # ══════════════════════════════════════════════════════════════════
-# 2. Slack shortcode converter  :+1:  :thumbsup:  etc.
-#    Slack sometimes stores emoji as text shortcodes instead of the
-#    actual unicode character. Convert FIRST so downstream steps see
-#    consistent input.  e.g. "Done :+1:" → "Done 👍" → caught below.
+# 2. Slack emoji shortcode handler
+#
+#    regex detects all :word: patterns
+#      ↓
+#    DECISION dict match → replace with plain English token (yes/no/confirmed/rejected)
+#      ↓
+#    everything else (noise, unknown) → removed entirely
+#
+#    e.g.  'Done :+1:'             →  'done yes'
+#          'bad idea :thumbsdown:' →  'bad idea no'
+#          'great :fire:'          →  'great'   (dropped)
+#          ':skull_and_crossbones:'→  ''        (dropped)
 # ══════════════════════════════════════════════════════════════════
 
-_SLACK_SHORTCODES: dict[str, str] = {
-    # Decision-relevant → convert to unicode so decision emoji step catches them
-    ":+1:":                "👍",
-    ":thumbsup:":          "👍",
-    ":-1:":                "👎",
-    ":thumbsdown:":        "👎",
-    ":white_check_mark:":  "✅",
-    ":heavy_check_mark:":  "✔",
-    ":x:":                 "❌",
-    ":negative_squared_cross_mark:": "❎",
-    ":ballot_box_with_check:": "☑",
-    # Common non-decision shortcodes → empty, cleanly removed
-    ":slightly_smiling_face:": "",
-    ":smile:": "",
-    ":laughing:": "",
-    ":joy:": "",
-    ":heart:": "",
-    ":fire:": "",
-    ":eyes:": "",
-    ":raised_hands:": "",
-    ":clap:": "",
-    ":pray:": "",
-    ":tada:": "",
-    ":rocket:": "",
-    ":100:": "",
-    ":ok_hand:": "",
-    ":wave:": "",
-    ":point_right:": "",
-}
-
-def _convert_slack_shortcodes(text: str) -> str:
-    for shortcode, replacement in _SLACK_SHORTCODES.items():
-        text = text.replace(shortcode, replacement)
-    return text
+_SHORTCODE_RE = re.compile(r':[a-z0-9_+\-]+'  r':')
+BASE_DIR = Path(__file__).resolve().parent
+EMOJI_FILE = BASE_DIR / "emojis.json"
+# Load emoji dictionary from JSON
+with open(EMOJI_FILE, "r", encoding="utf-8") as f:
+    _EMOJI_DATA = json.load(f)
+    
+# Extract only the emoji names for fast lookup
+EMOJI_NAMES = set(_EMOJI_DATA["EMOJIS"].keys())
+# _DECISION_SHORTCODES: dict[str, str] = {
+#     ":+1:":                          "yes",
+#     ":thumbsup:":                    "yes",
+#     ":-1:":                          "no",
+#     ":thumbsdown:":                  "no",
+#     ":white_check_mark:":            "confirmed",
+#     ":heavy_check_mark:":            "confirmed",
+#     ":ballot_box_with_check:":       "confirmed",
+#     ":x:":                           "rejected",
+#     ":negative_squared_cross_mark:": "rejected",
+#     ":no_entry:":                    "rejected",
+#     ":no_entry_sign:":               "rejected",
+# }
 
 
-# ══════════════════════════════════════════════════════════════════
-# 3. Decision emoji → text token
-#    Converted BEFORE general emoji removal so signal is preserved.
-#    👍/👎 on a proposed option = clearest possible decision signal.
-# ══════════════════════════════════════════════════════════════════
+# def _handle_shortcodes(text: str) -> str:
+#     def replace(match: re.Match) -> str:
+#         shortcode = match.group(0)
+#         token = _DECISION_SHORTCODES.get(shortcode)
+#         if token:
+#             return f" {token} "
+#         return " "
+#     return _SHORTCODE_RE.sub(replace, text)
+def _handle_shortcodes(text: str) -> str:
+    def replace(match: re.Match) -> str:
+        shortcode = match.group(0)      # ":coffee:"
+        name = shortcode[1:-1]          # "coffee"
 
-_DECISION_EMOJI: dict[str, str] = {
-    "👍": "thumbs_up",
-    "👎": "thumbs_down",
-    "✅": "confirmed",
-    "❌": "rejected",
-    "✔":  "confirmed",
-    "❎": "rejected",
-    "☑":  "confirmed",
-}
+        if name in EMOJI_NAMES:
+            return " "                  # remove emoji
+        return shortcode                # keep if not known
 
-def _convert_decision_emojis(text: str) -> str:
-    for emoji, token in _DECISION_EMOJI.items():
-        text = text.replace(emoji, f" {token} ")
-    return text
+    return _SHORTCODE_RE.sub(replace, text)
+
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -205,7 +201,7 @@ _ABBREVIATIONS: dict[str, str] = {
     r"\bpls\b":  "please",
     r"\bplej\b":  "please",
     r"\bplz\b":  "please",
-     r"\bplss\b":  "please",
+    r"\bplss\b":  "please",
     r"\bplejj\b":  "please",
     r"\bplzz\b":  "please",
     r"\bbc\b":   "because",
@@ -239,7 +235,7 @@ _BOILERPLATE_PATTERNS = [
         r"^(np|no problem|no worries|yw|you're welcome)[\s!.]*$",
         r"^(lol|lmao|lmfao|haha+|hehe+|hihi+|xd)[\s!.]*$",
         r"^(hmm+|hm+|uhh+|umm+|ugh+)[\s!.]*$",
-        #r"^(kk|k|got it|noted|will do|done|oki|okie)[\s!.]*$",
+        r"^(kk|k|got it|noted|will do|done|oki|okie)[\s!.]*$",
         r"^(best regards|regards|cheers|sincerely|yours truly|warm regards).*",
         r"^\+1[\s!.]*$",
         # Standalone laugh reactions
@@ -269,8 +265,8 @@ def clean_text(text: str, user_map: dict[str, str] | None = None) -> str:
         (Boilerplate check is done in preprocess_messages, not here,
          so callers get the cleaned text regardless.)
     """
-    # Step 0 — Slack shortcode conversion  :+1: → 👍  (must run first)
-    text = _convert_slack_shortcodes(text)
+    # Step 0 — Emoji shortcode handler: decision → token, everything else → removed
+    text = _handle_shortcodes(text)
 
     # Step 1 — Unicode normalisation (smart quotes, accents, nbsp, etc.)
     text = unicodedata.normalize("NFKC", text)
@@ -284,10 +280,7 @@ def clean_text(text: str, user_map: dict[str, str] | None = None) -> str:
     # Step 2 — Remove Slack code blocks (code ≠ decision text)
     text = _SLACK_CODE_BLOCK.sub("", text)
 
-    # Step 3 — Convert decision emojis to text tokens BEFORE removal
-    text = _convert_decision_emojis(text)
-
-    # Step 4 — Remove remaining emoji
+    # Step 3 — Remove remaining unicode emoji (shortcodes already handled above)
     text = _remove_emoji(text)
 
     # Step 5 — Resolve Slack @mentions
