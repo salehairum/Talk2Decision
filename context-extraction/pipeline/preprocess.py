@@ -50,7 +50,50 @@ _SLACK_INLINE_FMT = re.compile(r"[*_~`]")
 
 
 # ══════════════════════════════════════════════════════════════════
-# 2. Decision emoji → text token
+# 2. Slack shortcode converter  :+1:  :thumbsup:  etc.
+#    Slack sometimes stores emoji as text shortcodes instead of the
+#    actual unicode character. Convert FIRST so downstream steps see
+#    consistent input.  e.g. "Done :+1:" → "Done 👍" → caught below.
+# ══════════════════════════════════════════════════════════════════
+
+_SLACK_SHORTCODES: dict[str, str] = {
+    # Decision-relevant → convert to unicode so decision emoji step catches them
+    ":+1:":                "👍",
+    ":thumbsup:":          "👍",
+    ":-1:":                "👎",
+    ":thumbsdown:":        "👎",
+    ":white_check_mark:":  "✅",
+    ":heavy_check_mark:":  "✔",
+    ":x:":                 "❌",
+    ":negative_squared_cross_mark:": "❎",
+    ":ballot_box_with_check:": "☑",
+    # Common non-decision shortcodes → empty, cleanly removed
+    ":slightly_smiling_face:": "",
+    ":smile:": "",
+    ":laughing:": "",
+    ":joy:": "",
+    ":heart:": "",
+    ":fire:": "",
+    ":eyes:": "",
+    ":raised_hands:": "",
+    ":clap:": "",
+    ":pray:": "",
+    ":tada:": "",
+    ":rocket:": "",
+    ":100:": "",
+    ":ok_hand:": "",
+    ":wave:": "",
+    ":point_right:": "",
+}
+
+def _convert_slack_shortcodes(text: str) -> str:
+    for shortcode, replacement in _SLACK_SHORTCODES.items():
+        text = text.replace(shortcode, replacement)
+    return text
+
+
+# ══════════════════════════════════════════════════════════════════
+# 3. Decision emoji → text token
 #    Converted BEFORE general emoji removal so signal is preserved.
 #    👍/👎 on a proposed option = clearest possible decision signal.
 # ══════════════════════════════════════════════════════════════════
@@ -110,7 +153,7 @@ _REPEATED_DASH  = re.compile(r"-{2,}")
 
 # Strip characters that are purely decorative / non-linguistic
 # Keeps: letters, digits, basic punctuation (.,!?:;'"-), @, #, /,  newline
-_DECORATIVE     = re.compile(r"[^\w\s.,!?:;'\"\-@#/\n]")
+_DECORATIVE     = re.compile(r"[^\w\s.,!?:;'\"\-@#+/\n]")
 
 # Whitespace helpers
 _MULTI_SPACE    = re.compile(r"[ \t]+")
@@ -226,6 +269,9 @@ def clean_text(text: str, user_map: dict[str, str] | None = None) -> str:
         (Boilerplate check is done in preprocess_messages, not here,
          so callers get the cleaned text regardless.)
     """
+    # Step 0 — Slack shortcode conversion  :+1: → 👍  (must run first)
+    text = _convert_slack_shortcodes(text)
+
     # Step 1 — Unicode normalisation (smart quotes, accents, nbsp, etc.)
     text = unicodedata.normalize("NFKC", text)
 
@@ -358,8 +404,8 @@ if __name__ == "__main__":
     raw   = load_slack_export(sys.argv[1])
     clean = preprocess_messages(raw)
 
-    print(f"\nSample cleaned messages ({min(5, len(clean))}):")
-    for msg in clean[:5]:
+    print(f"\nSample cleaned messages ({max(5, len(clean))}):")
+    for msg in clean[:len(clean)]:
         print(json.dumps({
             "author_name":   msg["author_name"],
             "timestamp":     msg["timestamp"],
