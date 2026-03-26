@@ -404,4 +404,5 @@ if __name__ == "__main__":
             "timestamp":     msg["timestamp"],
             "content":       msg["content"],
             "content_clean": msg["content_clean"],
+            "thread_ts":     msg["thread_ts"],
         }, indent=2, ensure_ascii=False))

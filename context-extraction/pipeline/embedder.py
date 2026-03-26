@@ -1,11 +1,7 @@
 # semantic search and regular search
 """
-filter.py
+embedder.py
 ---------
-Two search modes over preprocessed T2D messages:
-
-1) Keyword search over a persisted inverted index
-2) Semantic search over a persisted Chroma vector index
 
 This module supports:
 - Building both indexes from scratch
@@ -27,8 +23,21 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
-
 import chromadb
+
+def _group_by_thread(messages: list[dict]):
+    threads = defaultdict(list)
+
+    for msg in messages:
+        thread_ts = msg.get("thread_ts")
+
+        # fallback: treat message as its own thread
+        if not thread_ts:
+            thread_ts = msg["ts_raw"]  # unique per message
+
+        threads[thread_ts].append(msg)
+
+    return threads
 
 
 # ================================================================
@@ -49,6 +58,9 @@ INDEX_DIR.mkdir(parents=True, exist_ok=True)
 INVERTED_INDEX_PATH = INDEX_DIR / "inverted_index.pkl"
 CHROMA_DIR = INDEX_DIR / "chroma_db"
 CHROMA_COLLECTION = "messages"
+CHROMA_WINDOWS_COLLECTION = "windows"
+WINDOW_SIZE = 4
+WINDOW_STRIDE = 1
 
 
 # ================================================================
@@ -172,6 +184,16 @@ def _get_chroma_collection(reset: bool = False):
 
     return client.get_or_create_collection(name=CHROMA_COLLECTION)
 
+def _get_windows_collection(reset: bool = False):
+    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+
+    if reset:
+        try:
+            client.delete_collection(CHROMA_WINDOWS_COLLECTION)
+        except Exception:
+            pass
+
+    return client.get_or_create_collection(name=CHROMA_WINDOWS_COLLECTION)
 
 def save_inverted_index(inv_index: dict[str, list[int]]) -> None:
     with open(INVERTED_INDEX_PATH, "wb") as fh:
@@ -263,12 +285,103 @@ def build_index(
         f"vector_count={collection.count()}"
     )
 
+    # after message embeddings are added
+
+    window_count = add_window_embeddings(
+        messages=messages,
+        embedder=embedder,
+        embed_field=embed_field,
+        reset=True,
+    )
+
+    print(
+        f"[filter] Index built: {len(messages)} messages, "
+        f"{len(inv_index)} unique tokens, "
+        f"vector_count={collection.count()}, "
+        f"window_count={window_count}"
+    )
     return SearchIndex(
         messages=messages,
         inverted_index=inv_index,
         embeddings=embeddings,
     )
 
+def _build_windows_by_thread(
+    messages: list[dict],
+    embed_field: str,
+    window_size: int = WINDOW_SIZE,
+    stride: int = WINDOW_STRIDE,
+):
+    threads = _group_by_thread(messages)
+
+    windows = []
+
+    for thread_ts, thread_msgs in threads.items():
+        if len(thread_msgs) == 1:
+            # single message → skip (already handled by message embeddings)
+            continue
+
+        for i in range(0, len(thread_msgs) - window_size + 1, stride):
+            chunk = thread_msgs[i : i + window_size]
+
+            text = " ".join(
+                _message_text(m, embed_field)
+                for m in chunk
+                if _message_text(m, embed_field)
+            ).strip()
+
+            if not text:
+                continue
+
+            windows.append(
+                {
+                    "text": text,
+                    "start": chunk[0]["ts_raw"],
+                    "end": chunk[-1]["ts_raw"],
+                    "thread_ts": thread_ts,
+                    "type": "thread_window",
+                }
+            )
+
+    return windows
+
+def _build_pseudo_windows(
+    messages: list[dict],
+    embed_field: str,
+    window_size: int = WINDOW_SIZE,
+    stride: int = WINDOW_STRIDE,
+):
+    # messages that are NOT in real threads
+    standalone = [
+        m for m in messages
+        if m.get("thread_ts") is None or m.get("thread_ts") == m.get("ts_raw")
+    ]
+
+    windows = []
+
+    for i in range(0, len(standalone) - window_size + 1, stride):
+        chunk = standalone[i : i + window_size]
+
+        text = " ".join(
+            _message_text(m, embed_field)
+            for m in chunk
+            if _message_text(m, embed_field)
+        ).strip()
+
+        if not text:
+            continue
+
+        windows.append(
+            {
+                "text": text,
+                "start": chunk[0]["ts_raw"],
+                "end": chunk[-1]["ts_raw"],
+                "thread_ts": None,
+                "type": "pseudo_window",
+            }
+        )
+
+    return windows
 
 def add_to_inverted_index(
     new_messages: list[dict],
@@ -292,7 +405,6 @@ def add_to_inverted_index(
     )
     save_inverted_index(updated)
     return updated
-
 
 def add_embeddings(
     new_messages: list[dict],
@@ -335,6 +447,52 @@ def add_embeddings(
 
     return embeddings
 
+def add_window_embeddings(
+    messages: list[dict],
+    embedder: Embedder | None = None,
+    embed_field: str = "content_clean",
+    reset: bool = False,
+):
+    if not messages:
+        return 0
+
+    embedder = embedder or SentenceTransformerEmbedder()
+    collection = _get_windows_collection(reset=reset)
+
+    thread_windows = _build_windows_by_thread(messages, embed_field)
+    pseudo_windows = _build_pseudo_windows(messages, embed_field)
+
+    all_windows = thread_windows + pseudo_windows
+
+    if not all_windows:
+        return 0
+
+    texts = [w["text"] for w in all_windows]
+    embeddings = embedder.embed(texts)
+
+    ids = [
+        f"w_{w['type']}_{w['start']}_{w['end']}"
+        for w in all_windows
+    ]
+
+    metadatas = [
+        {
+            "start": w["start"],
+            "end": w["end"],
+            "thread_ts": w["thread_ts"],
+            "type": w["type"],  # IMPORTANT
+        }
+        for w in all_windows
+    ]
+
+    collection.add(
+        ids=ids,
+        documents=texts,
+        embeddings=embeddings,
+        metadatas=metadatas,
+    )
+
+    return len(all_windows)
 
 def add_to_index(
     index: SearchIndex,
@@ -369,183 +527,65 @@ def add_to_index(
     else:
         index.embeddings.extend(new_embeddings)
 
+    add_window_embeddings_incremental(
+        all_messages=index.messages,
+        new_messages=new_messages,
+        embedder=embedder,
+        embed_field=embed_field,
+    )
+    
     return index
 
-
-# ================================================================
-# Retrieval
-# ================================================================
-
-
-def keyword_search(
-    index: SearchIndex,
-    query: str,
-    top_k: int = 5,
-) -> list[dict]:
-    query_tokens = _tokenise(query)
-    if not query_tokens:
-        return []
-
-    n_docs = len(index.messages)
-    scores: dict[int, float] = defaultdict(float)
-
-    for token in query_tokens:
-        postings = index.inverted_index.get(token, [])
-        if not postings:
-            continue
-        idf = math.log((n_docs + 1) / (len(postings) + 1)) + 1.0
-        for pos in postings:
-            scores[pos] += idf
-
-    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
-    return [
-        {
-            "message": index.messages[pos],
-            "score": round(score, 4),
-            "rank": i + 1,
-            "position": pos,
-        }
-        for i, (pos, score) in enumerate(ranked)
-    ]
-
-
-def semantic_search(
-    index: SearchIndex,
-    query: str,
-    top_k: int = 5,
+def add_window_embeddings_incremental(
+    all_messages: list[dict],
+    new_messages: list[dict],
     embedder: Embedder | None = None,
-) -> list[dict]:
+    embed_field: str = "content_clean",
+):
     """
-    Semantic retrieval using Chroma vector index.
+    Build windows ONLY for new regions (avoid recomputing everything).
     """
+    if not new_messages:
+        return 0
+
     embedder = embedder or SentenceTransformerEmbedder()
-    collection = _get_chroma_collection(reset=False)
+    collection = _get_windows_collection(reset=False)
 
-    if collection.count() == 0:
-        raise ValueError("Embedding index is empty. Run build_index first.")
+    start = len(all_messages) - len(new_messages)
 
-    query_vec = embedder.embed([query])[0]
-    results = collection.query(
-        query_embeddings=[query_vec],
-        n_results=top_k,
-        include=["distances", "metadatas", "documents"],
+    # include overlap to preserve context
+    window_start = max(0, start - WINDOW_SIZE + 1)
+
+    windows = _build_windows(
+        all_messages[window_start:],  # slice
+        embed_field,
     )
 
-    ids = results.get("ids", [[]])[0]
-    distances = results.get("distances", [[]])[0]
-    documents = results.get("documents", [[]])[0]
-    metadatas = results.get("metadatas", [[]])[0]
+    if not windows:
+        return 0
 
-    output: list[dict] = []
-    for i, doc_id in enumerate(ids):
-        pos = int(doc_id)
-        score = 1.0 - float(distances[i]) if i < len(distances) else 0.0
+    texts = [w["text"] for w in windows]
+    embeddings = embedder.embed(texts)
 
-        if 0 <= pos < len(index.messages):
-            message = index.messages[pos]
-        else:
-            metadata = metadatas[i] if i < len(metadatas) and metadatas[i] else {}
-            message = {
-                "content_clean": documents[i] if i < len(documents) else "",
-                "author_name": metadata.get("author_name", ""),
-                "timestamp": metadata.get("timestamp", ""),
-            }
-
-        output.append(
-            {
-                "message": message,
-                "score": round(score, 4),
-                "rank": i + 1,
-                "position": pos,
-            }
-        )
-
-    return output
-
-
-def hybrid_search(
-    index: SearchIndex,
-    query: str,
-    top_k: int = 5,
-    embedder: Embedder | None = None,
-    rrf_k: int = 60,
-) -> list[dict]:
-    kw_results = keyword_search(index, query, top_k=top_k * 2)
-    sem_results = semantic_search(index, query, top_k=top_k * 2, embedder=embedder)
-
-    rrf_scores: dict[int, float] = defaultdict(float)
-    sources: dict[int, set[str]] = defaultdict(set)
-
-    for result in kw_results:
-        pos = result["position"]
-        rrf_scores[pos] += 1.0 / (rrf_k + result["rank"])
-        sources[pos].add("keyword")
-
-    for result in sem_results:
-        pos = result["position"]
-        rrf_scores[pos] += 1.0 / (rrf_k + result["rank"])
-        sources[pos].add("semantic")
-
-    ranked = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
-
-    return [
-        {
-            "message": index.messages[pos],
-            "score": round(score, 6),
-            "rank": i + 1,
-            "source": sorted(list(sources[pos])),
-            "position": pos,
-        }
-        for i, (pos, score) in enumerate(ranked)
+    ids = [
+        f"w_{window_start + w['start']}_{window_start + w['end']}"
+        for w in windows
     ]
 
+    metadatas = [
+        {
+            "start": window_start + w["start"],
+            "end": window_start + w["end"],
+            "type": "window",
+        }
+        for w in windows
+    ]
 
-# ================================================================
-# Quick sanity check
-# ================================================================
+    collection.add(
+        ids=ids,
+        documents=texts,
+        embeddings=embeddings,
+        metadatas=metadatas,
+    )
 
-if __name__ == "__main__":
-    import sys
-
-    from loader import load_slack_export
-    from preprocess import preprocess_messages
-
-    if len(sys.argv) < 2:
-        print("Usage: python filter.py <slack_export.json>")
-        sys.exit(1)
-
-    filepath = sys.argv[1]
-
-    raw = load_slack_export(filepath)
-    clean = preprocess_messages(raw)
-
-    embedder = SentenceTransformerEmbedder()
-    index = build_index(clean, embedder=embedder)
-
-    print("\n=== Interactive Search ===")
-    print("Type your query (or 'exit' to quit)\n")
-
-    while True:
-        query = input("Query > ").strip()
-
-        if query.lower() in {"exit", "quit"}:
-            print("Exiting.")
-            break
-
-        if not query:
-            continue
-
-        print(f"\n-- Hybrid search: '{query}' --")
-
-        results = hybrid_search(index, query, top_k=5, embedder=embedder)
-
-        for result in results:
-            msg = result["message"]
-            source = ", ".join(result["source"])
-
-            print(f"[{result['rank']}] score={result['score']} source={source}")
-            print(f"    @{msg.get('author_name', '')} {msg.get('timestamp', '')}")
-            print(f"    {msg.get('content_clean', '')[:120]}")
-            print()
-
-        print("-" * 60)
+    return len(windows)

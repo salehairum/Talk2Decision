@@ -55,3 +55,11 @@ Sample cleaned messages (2):
   "content_clean": "adding ik do msg just to see how the export works"
 }
 ```
+
+## filter_for_search.py
+```
+python context-extraction/pipeline/filter_for_search.py context-extraction/data/chat.json
+```
+
+## Main.py
+python context-extraction/pipeline/main.py context-extraction/data/chat.json
