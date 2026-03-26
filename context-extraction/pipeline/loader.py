@@ -114,15 +114,26 @@ def load_slack_export(filepath: str | Path, thread_id: str | None = None) -> lis
         author_id, author_name = _extract_author(msg)
         ts_raw = float(msg.get("ts", 0))
 
+        thread_ts = msg.get("thread_ts", msg.get("ts"))
+        is_threaded = "thread_ts" in msg and msg["thread_ts"] != msg["ts"]
+
         normalised.append({
             "message_id":  _make_message_id(msg),
+
+            # channel-level grouping (keep this)
             "thread_id":   thread_id,
-            "role":        "user",          # extend later for bot/assistant role
+
+            # actual Slack thread grouping
+            "thread_ts":   thread_ts,
+
+            "role":        "user",
             "author_id":   author_id,
             "author_name": author_name,
-            "content":     text,            # raw — preprocess.py cleans this
+            "content":     text,
             "timestamp":   _ts_to_iso(msg["ts"]),
             "ts_raw":      ts_raw,
+
+            "is_threaded": is_threaded
         })
 
     # Ensure chronological order (Slack exports are usually sorted, but not guaranteed)
