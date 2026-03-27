@@ -45,11 +45,6 @@ No-decision fallback:
 }
 ```
 
-## Do I Need config.yaml or .env?
-
-- `config.yaml`: Not required.
-- `.env`: Optional but recommended for local development.
-
 The code reads these environment variables:
 
 - `LLM_PROVIDER` (`openai`, `groq`, or `gemini`)
