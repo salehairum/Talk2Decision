@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Talk2Decision</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">📁 Uploaded Files</div>
+            <ul class="file-list" id="file-list">
+                <li style="padding: 20px; text-align: center; color: #999; font-size: 13px;">
+                    No files uploaded yet
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main content -->
+        <div class="main">
+            <!-- Upload -->
+            <div class="upload-area">
+                <h1>Talk2Decision</h1>
+                <p>Upload Slack chat exports and extract decisions using AI</p>
+                <div class="upload-form">
+                    <input type="file" id="file-input" accept=".json" />
+                    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                        📤 Choose File
+                    </button>
+                    <div class="file-name-display" id="file-name-display"></div>
+                </div>
+            </div>
+
+            <!-- Processing status -->
+            <div class="processing" id="processing-area" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text">
+                    <span class="spinner"></span><strong id="progress-status">Loading...</strong>
+                </div>
+            </div>
+
+            <!-- Query and results -->
+            <div class="content" id="content-area">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <p>Upload a chat file to get started</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:5000";
+        let currentFileId = null;
+        let processingIntervalId = null;
+
+        // Handle file selection
+        document.getElementById("file-input").addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById("file-name-display").textContent = file.name;
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+                const data = await res.json();
+
+                if (res.ok) {
+                    currentFileId = data.file_id;
+                    showProcessing(data.file_id);
+                    pollProcessingStatus(data.file_id);
+                } else {
+                    showError(`Upload failed: ${data.error}`);
+                }
+            } catch (err) {
+                showError(`Upload error: ${err.message}`);
+            }
+        });
+
+        function showProcessing(fileId) {
+            document.getElementById("processing-area").style.display = "block";
+            document.getElementById("content-area").innerHTML = "";
+        }
+
+        function pollProcessingStatus(fileId) {
+            if (processingIntervalId) clearInterval(processingIntervalId);
+
+            processingIntervalId = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/status/${fileId}`);
+                    const raw = await res.text();
+                    let data = null;
+                    try {
+                        data = JSON.parse(raw);
+                    } catch (parseErr) {
+                        console.error("Status poll non-JSON response:", raw);
+                        clearInterval(processingIntervalId);
+                        showError(`Status endpoint returned non-JSON response (HTTP ${res.status}). Check backend logs.`);
+                        return;
+                    }
+
+                    if (res.ok) {
+                        document.getElementById("progress-fill").style.width = `${data.progress}%`;
+                        const elapsed = Number.isInteger(data.step_elapsed_seconds)
+                            ? ` (${data.step_elapsed_seconds}s in current step)`
+                            : "";
+                        document.getElementById("progress-status").textContent = `${data.message}${elapsed}`;
+
+                        if (data.status === "completed") {
+                            clearInterval(processingIntervalId);
+                            document.getElementById("processing-area").style.display = "none";
+                            loadFiles();
+                            showQueryInterface();
+                        } else if (data.status === "failed") {
+                            clearInterval(processingIntervalId);
+                            showError(`Processing failed: ${data.error}`);
+                        }
+                    } else {
+                        console.error(`Status poll failed (${res.status}):`, data);
+                        if (res.status === 404) {
+                            // Backend may still be creating state right after upload.
+                            return;
+                        }
+                        clearInterval(processingIntervalId);
+                        showError(`Status check failed (HTTP ${res.status}): ${data.error || "Unknown error"}`);
+                    }
+                } catch (err) {
+                    console.error("Status poll error:", err);
+                }
+            }, 500);
+        }
+
+        async function loadFiles() {
+            try {
+                const res = await fetch(`${API_BASE}/files`);
+                const data = await res.json();
+
+                if (res.ok && data.files.length > 0) {
+                    const fileList = document.getElementById("file-list");
+                    fileList.innerHTML = data.files
+                        .map(
+                            (f) => `
+                        <li class="file-item ${f.file_id === currentFileId ? "active" : ""}" onclick="selectFile('${f.file_id}')">
+                            <span class="file-item-name">📄 ${f.file_id}</span>
+                            <span class="file-item-time">${new Date(f.uploaded_at).toLocaleDateString()}</span>
+                        </li>
+                    `
+                        )
+                        .join("");
+                }
+            } catch (err) {
+                console.error("Load files error:", err);
+            }
+        }
+
+        function selectFile(fileId) {
+            currentFileId = fileId;
+            loadFiles();
+            showQueryInterface();
+        }
+
+        function showQueryInterface() {
+            if (!currentFileId) return;
+
+            const content = document.getElementById("content-area");
+            content.innerHTML = `
+                <div class="query-section">
+                    <h2>🔍 Ask a question about this chat</h2>
+                    <div class="query-input-group">
+                        <input 
+                            type="text" 
+                            id="query-input" 
+                            placeholder="e.g., What was the final decision on the feature?"
+                            onkeydown="if(event.key==='Enter') runQuery()"
+                        />
+                        <button class="query-btn" onclick="runQuery()">Search</button>
+                    </div>
+                </div>
+                <div id="results-area"></div>
+            `;
+        }
+
+        async function runQuery() {
+            const query = document.getElementById("query-input").value.trim();
+            if (!query || !currentFileId) return;
+
+            const queryBtn = document.querySelector(".query-btn");
+            queryBtn.disabled = true;
+            queryBtn.innerHTML = '<span class="spinner"></span>Searching...';
+
+            try {
+                const res = await fetch(`${API_BASE}/query`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        file_id: currentFileId,
+                        query: query,
+                        top_k: 8,
+                    }),
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    displayResult(query, data.decision, data.chunks_retrieved);
+                } else {
+                    showError(`Query failed: ${data.error}`);
+                }
+            } catch (err) {
+                showError(`Query error: ${err.message}`);
+            } finally {
+                queryBtn.disabled = false;
+                queryBtn.innerHTML = "Search";
+            }
+        }
+
+        function displayResult(query, decision, chunksCount) {
+            const resultsArea = document.getElementById("results-area");
+            const hasEvidence = decision.evidence && decision.evidence.length > 0;
+            const confidenceClass = `confidence-${decision.confidence.toLowerCase()}`;
+
+            resultsArea.innerHTML = `
+                <div class="result">
+                    <h3>Decision Extracted</h3>
+                    <div class="decision-box">
+                        <div class="decision-label">Decision</div>
+                        <div class="decision-text">${decision.decision}</div>
+                        <span class="confidence-badge ${confidenceClass}">
+                            ${decision.confidence} Confidence
+                        </span>
+                    </div>
+
+                    ${
+                        hasEvidence
+                            ? `
+                        <div>
+                            <p style="font-size: 13px; margin-bottom: 10px; color: #666;">
+                                Found in <strong>${chunksCount}</strong> relevant messages:
+                            </p>
+                            <div class="evidence">
+                                ${decision.evidence
+                                    .map(
+                                        (e) => `
+                                    <div class="evidence-item">
+                                        <div class="evidence-author">@${e.user}</div>
+                                        <div class="evidence-text">"${e.text}"</div>
+                                        <div class="evidence-time">${e.timestamp}</div>
+                                    </div>
+                                `
+                                    )
+                                    .join("")}
+                            </div>
+                        </div>
+                    `
+                            : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
+                    }
+                </div>
+            `;
+        }
+
+        function showError(message) {
+            const resultsArea = document.getElementById("results-area") || document.getElementById("content-area");
+            resultsArea.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+
+        // Load initial file list
+        loadFiles();
+    </script>
+</body>
+</html>

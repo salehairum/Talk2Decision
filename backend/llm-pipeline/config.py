@@ -1,8 +1,31 @@
 import os
+from importlib import import_module
 from dataclasses import dataclass
 from typing import Optional
 
-from dotenv import load_dotenv
+
+def _clean_env_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if (
+        len(cleaned) >= 2
+        and cleaned[0] == cleaned[-1]
+        and cleaned[0] in {'"', "'"}
+    ):
+        cleaned = cleaned[1:-1].strip()
+    return cleaned or None
+
+
+def load_dotenv() -> None:
+    try:
+        dotenv_module = import_module("dotenv")
+        dotenv_loader = getattr(dotenv_module, "load_dotenv", None)
+        if callable(dotenv_loader):
+            dotenv_loader()
+    except Exception:
+        # Environment variables can still be set by the shell.
+        return None
 
 
 # Load .env if present; environment variables still work normally.
@@ -47,21 +70,21 @@ def load_config() -> LLMConfig:
             provider = "gemini"
         else:
             provider = "openai"
-    generic_api_key = os.getenv("LLM_API_KEY")
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    google_api_key = os.getenv("GOOGLE_API_KEY")
+    generic_api_key = _clean_env_value(os.getenv("LLM_API_KEY"))
+    openai_api_key = _clean_env_value(os.getenv("OPENAI_API_KEY"))
+    groq_api_key = _clean_env_value(os.getenv("GROQ_API_KEY"))
+    google_api_key = _clean_env_value(os.getenv("GOOGLE_API_KEY"))
 
     if provider == "openai":
-        api_key = generic_api_key or openai_api_key
+        api_key = openai_api_key or generic_api_key
     elif provider == "groq":
-        api_key = generic_api_key or groq_api_key
+        api_key = groq_api_key or generic_api_key
     elif provider == "gemini":
-        api_key = generic_api_key or google_api_key
+        api_key = google_api_key or generic_api_key
     else:
         # Keep behavior predictable with unsupported values.
         provider = "openai"
-        api_key = generic_api_key or openai_api_key
+        api_key = openai_api_key or generic_api_key
 
     temperature_raw = os.getenv("LLM_TEMPERATURE", "0")
     max_tokens_raw = os.getenv("LLM_MAX_TOKENS", "500")

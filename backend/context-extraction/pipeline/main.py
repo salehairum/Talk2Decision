@@ -6,10 +6,12 @@ from preprocess import preprocess_messages
 # ================================================================
 # Entrypoint function
 # ================================================================
-def entrypoint(slack_export_path: str, top_k: int = 5):
+def entrypoint(slack_export_path: str, top_k: int = 5, query: str | None = None):
     """
     Loads Slack export, preprocesses messages, builds index, and
     starts an interactive prompt for running multiple queries.
+
+    If query is provided, runs a single retrieval and returns chunks.
     
     Args:
         slack_export_path: Path to Slack JSON export file.
@@ -24,6 +26,9 @@ def entrypoint(slack_export_path: str, top_k: int = 5):
     # 2) Initialize embedder and build index
     embedder = SentenceTransformerEmbedder()
     index = build_index(clean_messages, embedder=embedder)
+
+    if query is not None:
+        return run_query(index, query, top_k=top_k, embedder=embedder)
 
     print("System ready. You can now enter queries (type 'exit' to quit).\n")
 

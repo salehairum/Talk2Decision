@@ -1,5 +1,8 @@
 import json
-from importlib import import_module
+import os
+import sys
+from importlib import import_module, util
+from pathlib import Path
 from typing import Any, Dict, List
 
 from config import LLMConfig, load_config
@@ -10,6 +13,135 @@ DEFAULT_NO_DECISION = {
 	"confidence": "Low",
 	"evidence": [],
 }
+
+
+def _bootstrap_env() -> None:
+	"""Load .env from common project locations before reading config."""
+	try:
+		dotenv_loader = None
+		try:
+			dotenv_module = import_module("dotenv")
+			dotenv_loader = getattr(dotenv_module, "load_dotenv", None)
+		except Exception:
+			dotenv_loader = None
+
+		current_dir = Path(__file__).resolve().parent
+		project_root = Path(__file__).resolve().parents[2]
+		workspace_root = Path(__file__).resolve().parents[3]
+
+		# Try explicit paths first so env loading does not depend on process cwd.
+		candidates = [
+			current_dir / ".env",
+			current_dir.parent / ".env",
+			project_root / ".env",
+			workspace_root / ".env",
+			Path.cwd() / ".env",
+		]
+
+		def _parse_env_file(env_path: Path) -> None:
+			for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+				line = raw_line.strip()
+				if not line or line.startswith("#"):
+					continue
+				if line.startswith("export "):
+					line = line[7:].strip()
+				if "=" not in line:
+					continue
+				key, value = line.split("=", 1)
+				key = key.strip()
+				value = value.strip()
+				if (
+					len(value) >= 2
+					and value[0] == value[-1]
+					and value[0] in {'"', "'"}
+				):
+					value = value[1:-1]
+				if key:
+					os.environ[key] = value
+
+		seen = set()
+		for env_path in candidates:
+			resolved = str(env_path.resolve())
+			if resolved in seen:
+				continue
+			seen.add(resolved)
+			if env_path.exists():
+				if callable(dotenv_loader):
+					dotenv_loader(dotenv_path=env_path, override=True)
+				else:
+					_parse_env_file(env_path)
+				break
+
+		if callable(dotenv_loader):
+			# Keep default behavior as a final fallback.
+			dotenv_loader(override=False)
+	except Exception:
+		# Environment variables can still be provided by the shell.
+		return
+
+
+def _load_context_entrypoint() -> Any:
+	"""Load context-extraction entrypoint from sibling backend folder."""
+	backend_dir = Path(__file__).resolve().parents[1]
+	context_main = backend_dir / "context-extraction" / "pipeline" / "main.py"
+	if not context_main.exists():
+		raise FileNotFoundError(f"Context entrypoint not found: {context_main}")
+
+	context_dir = str(context_main.parent)
+	if context_dir not in sys.path:
+		sys.path.insert(0, context_dir)
+
+	spec = util.spec_from_file_location("context_pipeline_main", context_main)
+	if spec is None or spec.loader is None:
+		raise ImportError(f"Failed to load module spec from: {context_main}")
+
+	module = util.module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return getattr(module, "entrypoint")
+
+
+def retrieve_chunks(slack_export_path: str, query: str, top_k: int = 8) -> List[Dict[str, Any]]:
+	"""Retrieve top relevant chunks/messages from context extraction pipeline."""
+	entrypoint = _load_context_entrypoint()
+	results = entrypoint(slack_export_path=slack_export_path, top_k=top_k, query=query)
+	if not isinstance(results, list):
+		return []
+	return results
+
+
+def chunks_to_messages(chunks: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+	"""Map retrieval chunks into LLM input schema: user/text/timestamp."""
+	messages: List[Dict[str, str]] = []
+	seen = set()
+
+	for chunk in chunks:
+		if not isinstance(chunk, dict):
+			continue
+		msg = chunk.get("message", {})
+		if not isinstance(msg, dict):
+			continue
+
+		user = str(msg.get("author_name") or msg.get("author_id") or "Unknown")
+		timestamp = str(msg.get("timestamp") or "")
+		text = ""
+
+		window = chunk.get("window")
+		if isinstance(window, dict) and window.get("text"):
+			text = str(window.get("text"))
+		else:
+			text = str(msg.get("content") or msg.get("content_clean") or "")
+
+		text = text.strip()
+		if not text:
+			continue
+
+		key = (user, text, timestamp)
+		if key in seen:
+			continue
+		seen.add(key)
+		messages.append({"user": user, "text": text, "timestamp": timestamp})
+
+	return messages
 
 
 def format_messages(messages: List[Dict[str, Any]]) -> str:
@@ -25,28 +157,59 @@ def format_messages(messages: List[Dict[str, Any]]) -> str:
 
 def build_prompt(messages_block: str, query: str) -> List[Any]:
 	system_prompt = (
-		"You are an information extraction system. "
-		"Use ONLY the provided conversation messages. "
-		"Do NOT infer, assume, or add details that are not explicitly present. "
-		"If there is no clear decision, return exactly: "
-		'{"decision":"No clear decision found","confidence":"Low","evidence":[]}. '
-		"Return STRICT JSON only with keys: decision, confidence, evidence. "
-		"confidence must be one of: High, Medium, Low. "
-		"evidence must be an array of objects with keys: user, text, timestamp. "
-		"Each evidence.text MUST match a provided message text exactly. "
-		"No markdown, no extra keys, no commentary."
+		"You are an AI system that analyzes team conversations to extract decisions and supporting evidence."
 	)
 
 	user_prompt = (
-		"User query:\\n"
-		f"{query}\\n\\n"
-		"Conversation messages:\\n"
-		f"{messages_block}\\n\\n"
-		"Task:\\n"
-		"1) Determine whether a final decision was made.\\n"
-		"2) Extract the final decision text.\\n"
-		"3) Extract exact evidence messages from the conversation only.\\n"
-		"4) If unclear, return the no-decision JSON."
+		"You are given:\n"
+		"1. A list of messages (each contains user, text, timestamp)\n"
+		"2. A user query\n\n"
+		"Your task:\n"
+		"1. Identify the final decision related to the query\n"
+		"2. Find the exact message where the decision is clearly stated\n"
+		"3. Identify who made the decision and when\n"
+		"4. Provide supporting evidence messages\n\n"
+		"STRICT RULES:\n"
+		"- ONLY use the provided messages\n"
+		"- DO NOT hallucinate or infer missing data\n"
+		"- The quoted decision message MUST match the original text exactly\n"
+		"- If no clear decision is found, say so explicitly\n\n"
+		"OUTPUT FORMAT:\n\n"
+		"First, provide a natural language answer:\n\n"
+		'\"Final Decision: <decision in plain English>.\n\n'
+		"This decision was made by <user> at <timestamp>, as stated in the message:\n"
+		'\"<exact message text>\"\n\n'
+		"Explanation:\n"
+		"Briefly explain how the conversation led to this decision.\"\n\n"
+		"Then provide structured JSON:\n\n"
+		"{\n"
+		'  \"decision\": \"string\",\n'
+		'  \"decision_made_by\": \"string\",\n'
+		'  \"timestamp\": \"string\",\n'
+		'  \"decision_message\": \"exact message text\",\n'
+		'  \"confidence\": \"High/Medium/Low\",\n'
+		'  \"evidence\": [\n'
+		"    {\n"
+		'      \"user\": \"string\",\n'
+		'      \"text\": \"exact message text\",\n'
+		'      \"timestamp\": \"string\"\n'
+		"    }\n"
+		"  ]\n"
+		"}\n\n"
+		"If no decision is found, return:\n\n"
+		'\"Final Decision: No clear decision found.\"\n\n'
+		"{\n"
+		'  \"decision\": \"No clear decision found\",\n'
+		'  \"decision_made_by\": null,\n'
+		'  \"timestamp\": null,\n'
+		'  \"decision_message\": null,\n'
+		'  \"confidence\": \"Low\",\n'
+		'  \"evidence\": []\n'
+		"}\n\n"
+		"Now analyze the following messages:\n\n"
+		f"{messages_block}\n\n"
+		"User Query:\n"
+		f"{query}"
 	)
 
 	# Tuple-style messages keep the implementation simple and LangChain-compatible.
@@ -173,6 +336,41 @@ def normalize_output(data: Dict[str, Any], messages: List[Dict[str, Any]]) -> Di
 	}
 
 
+def format_decision_response(result: Dict[str, Any]) -> str:
+	"""Render a clean, user-facing decision summary with evidence."""
+	decision = str(result.get("decision", "No clear decision found")).strip()
+	confidence = str(result.get("confidence", "Low")).strip()
+	evidence = result.get("evidence", [])
+
+	lines: List[str] = [
+		"Decision Summary",
+		f"Decision: {decision}",
+		f"Confidence: {confidence}",
+		"",
+		"Evidence:",
+	]
+
+	if not isinstance(evidence, list) or not evidence:
+		lines.append("- No supporting evidence found.")
+		return "\n".join(lines)
+
+	for idx, item in enumerate(evidence, start=1):
+		if not isinstance(item, dict):
+			continue
+		user = str(item.get("user", "Unknown")).strip() or "Unknown"
+		text = str(item.get("text", "")).strip()
+		timestamp = str(item.get("timestamp", "")).strip()
+
+		meta = f"{idx}. {user}"
+		if timestamp:
+			meta += f" ({timestamp})"
+
+		lines.append(meta)
+		lines.append(f"   {text}")
+
+	return "\n".join(lines)
+
+
 def extract_decision(
 	messages: List[Dict[str, Any]],
 	query: str,
@@ -185,40 +383,69 @@ def extract_decision(
 	try:
 		messages_block = format_messages(messages)
 		prompt_messages = build_prompt(messages_block, query)
+		print("=============================")
+		print("Prompt Messages: ", prompt_messages)
 
 		llm = get_chat_llm(config)
 		response = llm.invoke(prompt_messages)
+		print("=============================")
+		print("LLM Raw Response: ", response)
 		content = response.content if isinstance(response.content, str) else json.dumps(response.content)
+		print("=============================")
+		print("LLM Content to Parse: ", content)
 
 		parsed = safe_json_parse(content)
 		return normalize_output(parsed, messages)
-	except Exception:
+	except Exception as e:
+		# Print error details before fallback so user can see what failed.
+		print("=============================")
+		print(f"ERROR in extract_decision: {type(e).__name__}: {e}")
+		import traceback
+		traceback.print_exc()
+		print("=============================")
 		# Graceful fallback while preserving the strict required schema.
 		return DEFAULT_NO_DECISION.copy()
 
 
 def main() -> None:
-	messages = [
-        {"user": "Ali", "text": "We need to finalize the frontend theme today", "timestamp": "1"},
-        {"user": "Sara", "text": "Yeah current one feels too plain", "timestamp": "2"},
-        {"user": "Usman", "text": "I was thinking maybe dark mode as default?", "timestamp": "3"},
-        {"user": "Hina", "text": "Dark mode is trendy but not always readable", "timestamp": "4"},
-        {"user": "Ali", "text": "What about light theme with blue accents?", "timestamp": "5"},
-        {"user": "Sara", "text": "Blue looks professional tbh", "timestamp": "6"},
-        {"user": "Usman", "text": "We can also consider purple, looks modern", "timestamp": "7"},
-        {"user": "Hina", "text": "Purple might be too flashy for our use case", "timestamp": "8"},
-        {"user": "Ali", "text": "Agree, we want something clean and simple", "timestamp": "9"},
-        {"user": "Sara", "text": "Blue + white combo is safe and clean", "timestamp": "10"},
-        {"user": "Usman", "text": "Okay I am convinced, blue works", "timestamp": "11"},
-        {"user": "Ali", "text": "So final decision: light theme with blue accents", "timestamp": "12"},
-        {"user": "Hina", "text": "Yes let's lock that", "timestamp": "13"},
-        {"user": "Sara", "text": "Done 👍", "timestamp": "14"}
-	]
-	query = "What was the final decision made about theme?"
+	if len(sys.argv) < 2:
+		print("Usage: python llm_pipeline.py <slack_export.json> [top_k]")
+		return
 
+	slack_export_path = sys.argv[1]
+	try:
+		top_k = int(sys.argv[2]) if len(sys.argv) > 2 else 8
+	except ValueError:
+		top_k = 8
+
+	_bootstrap_env()
 	config = load_config()
-	result = extract_decision(messages, query, config)
-	print(json.dumps(result, indent=2, ensure_ascii=True))
+	print("Decision pipeline ready. Type a query (type 'exit' to quit).")
+
+	while True:
+		query = input("Query > ").strip()
+		if query.lower() in {"exit", "quit"}:
+			print("Exiting.")
+			break
+		if not query:
+			continue
+
+		try:
+			chunks = retrieve_chunks(slack_export_path=slack_export_path, query=query, top_k=top_k)
+			print("Chunks: ", chunks)
+		except Exception as exc:
+			print(f"Retrieval error: {exc}")
+			continue
+
+		messages = chunks_to_messages(chunks)
+		print("============================")
+		print("Messages: ", messages)
+		result = extract_decision(messages, query, config)
+		print("============================")
+		print("Raw Result: ", result)
+		print(format_decision_response(result))
+		print("============================")
+		print("Ready for next query.")
 
 
 if __name__ == "__main__":
