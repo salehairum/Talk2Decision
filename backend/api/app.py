@@ -26,7 +26,7 @@ from loader import load_slack_export
 from preprocess import preprocess_messages
 from filter_for_search import SentenceTransformerEmbedder, build_index
 from query import run_query
-from config import load_config
+from config import load_config, get_config_options, SUPPORTED_PROVIDERS
 from llm_pipeline import extract_decision, chunks_to_messages, format_decision_response
 
 
@@ -43,6 +43,22 @@ ALLOWED_EXTENSIONS = {"json"}
 # In-memory cache: {file_id: {"status": "...", "index": ..., "messages": ...}}
 processing_cache = {}
 processing_lock = threading.Lock()
+
+
+def _get_top_retrieval_score(chunks: list[dict]) -> float:
+    """Return the highest numeric retrieval score from query chunks."""
+    scores: list[float] = []
+    for item in chunks:
+        if not isinstance(item, dict):
+            continue
+        value = item.get("score")
+        try:
+            scores.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    if not scores:
+        return 0.0
+    return max(scores)
 
 
 def _iso_now() -> str:
@@ -208,6 +224,12 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
+@app.route("/llm/options", methods=["GET"])
+def llm_options():
+    """Return selectable provider/model options for clients."""
+    return jsonify(get_config_options()), 200
+
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
     """Upload a JSON Slack export file."""
@@ -326,9 +348,24 @@ def query_file():
     file_id = data.get("file_id")
     query = data.get("query", "").strip()
     top_k = data.get("top_k", 8)
+    llm_provider = str(data.get("llm_provider", "")).strip().lower()
+    llm_model = str(data.get("llm_model", "")).strip()
 
     if not file_id or not query:
         return jsonify({"error": "Missing file_id or query"}), 400
+
+    if llm_provider and llm_provider not in SUPPORTED_PROVIDERS:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Unsupported llm_provider. "
+                        f"Allowed values: {', '.join(sorted(SUPPORTED_PROVIDERS))}"
+                    )
+                }
+            ),
+            400,
+        )
 
     with processing_lock:
         if file_id not in processing_cache:
@@ -352,8 +389,20 @@ def query_file():
         messages = chunks_to_messages(results)
         
         # Extract decision
-        config = load_config()
+        config = load_config(
+            provider_override=llm_provider or None,
+            model_override=llm_model or None,
+        )
+        _log(
+            f"[QUERY] Using LLM provider={config.provider} model={config.model_name}"
+        )
         decision = extract_decision(messages, query, config)
+
+        retrieval_score = round(_get_top_retrieval_score(results), 6)
+        if isinstance(decision, dict):
+            decision["confidence_score"] = retrieval_score
+            decision["confidence"] = retrieval_score
+
         decision_response = format_decision_response(decision)
         _log("[QUERY] LLM formatted response:\n" + decision_response)
         
@@ -362,6 +411,10 @@ def query_file():
                 "file_id": file_id,
                 "query": query,
                 "chunks_retrieved": len(results),
+                "llm": {
+                    "provider": config.provider,
+                    "model": config.model_name,
+                },
                 "decision": decision,
                 "decision_response": decision_response,
             }

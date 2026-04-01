@@ -1,7 +1,20 @@
 import os
 from importlib import import_module
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Dict, Optional
+
+
+SUPPORTED_PROVIDERS = {"groq", "gemini"}
+
+PROVIDER_DEFAULT_MODELS = {
+    "groq": "llama-3.1-8b-instant",
+    "gemini": "gemini-2.5-flash",
+}
+
+PROVIDER_MODEL_ENV = {
+    "groq": "GROQ_MODEL",
+    "gemini": "GEMINI_MODEL",
+}
 
 
 def _clean_env_value(value: Optional[str]) -> Optional[str]:
@@ -34,57 +47,96 @@ load_dotenv()
 
 @dataclass
 class LLMConfig:
-    provider: str = "openai"
-    model_name: str = "gpt-4o-mini"
+    provider: str = "groq"
+    model_name: str = "llama-3.1-8b-instant"
     api_key: Optional[str] = None
     temperature: float = 0.0
     max_tokens: int = 500
     api_base: Optional[str] = None
 
 
-def load_config() -> LLMConfig:
+def _resolve_provider(raw_provider: Optional[str], raw_model_name: str) -> str:
+    provider = (raw_provider or "").strip().lower()
+    model_name = (raw_model_name or "").strip()
+
+    if "/" in model_name:
+        maybe_provider, _ = model_name.split("/", 1)
+        if maybe_provider.lower() in SUPPORTED_PROVIDERS and not provider:
+            provider = maybe_provider.lower()
+
+    if provider in SUPPORTED_PROVIDERS:
+        return provider
+
+    if model_name.startswith("gemini"):
+        return "gemini"
+
+    return "groq"
+
+
+def _resolve_model_name(provider: str, model_override: Optional[str]) -> str:
+    explicit_model = _clean_env_value(model_override)
+    if explicit_model:
+        return explicit_model
+
+    llm_model_name = _clean_env_value(os.getenv("LLM_MODEL_NAME"))
+    if llm_model_name:
+        if "/" in llm_model_name:
+            maybe_provider, maybe_model = llm_model_name.split("/", 1)
+            if maybe_provider.lower() in SUPPORTED_PROVIDERS and maybe_model.strip():
+                return maybe_model.strip()
+        return llm_model_name
+
+    provider_model_env = PROVIDER_MODEL_ENV.get(provider)
+    provider_model = _clean_env_value(os.getenv(provider_model_env or ""))
+    if provider_model:
+        return provider_model
+
+    return PROVIDER_DEFAULT_MODELS.get(provider, PROVIDER_DEFAULT_MODELS["groq"])
+
+
+def get_available_models() -> Dict[str, str]:
+    """Return configured default model for each provider."""
+    return {
+        provider: _resolve_model_name(provider, None)
+        for provider in sorted(SUPPORTED_PROVIDERS)
+    }
+
+
+def load_config(provider_override: Optional[str] = None, model_override: Optional[str] = None) -> LLMConfig:
     """Load config from environment variables with sane defaults.
 
     Set environment variables as needed:
-    - LLM_PROVIDER (openai/groq/gemini)
-    - LLM_MODEL_NAME
+    - LLM_PROVIDER (groq/gemini)
+    - LLM_MODEL_NAME (global model override)
+    - GROQ_MODEL / GEMINI_MODEL (provider-specific defaults)
     - LLM_API_KEY (generic override for any provider)
-    - OPENAI_API_KEY / GROQ_API_KEY / GOOGLE_API_KEY
+    - GROQ_API_KEY / GEMINI_API_KEY
     - LLM_TEMPERATURE
     - LLM_MAX_TOKENS
     - LLM_API_BASE
     """
-    provider = os.getenv("LLM_PROVIDER", "").strip().lower()
-    model_name = os.getenv("LLM_MODEL_NAME", "gpt-4o-mini").strip()
+    env_provider = _clean_env_value(os.getenv("LLM_PROVIDER"))
+    raw_provider = provider_override if provider_override is not None else env_provider
+    model_name = _resolve_model_name(
+        _resolve_provider(raw_provider, model_override or ""),
+        model_override,
+    )
+    provider = _resolve_provider(raw_provider, model_name)
 
-    # Allow model names like "groq/llama-3.1-8b-instant" and infer provider.
-    if "/" in model_name:
-        maybe_provider, maybe_model = model_name.split("/", 1)
-        if maybe_provider.lower() in {"openai", "groq", "gemini"}:
-            if not provider:
-                provider = maybe_provider.lower()
-            model_name = maybe_model.strip()
-
-    if not provider:
-        if model_name.startswith("gemini"):
-            provider = "gemini"
-        else:
-            provider = "openai"
     generic_api_key = _clean_env_value(os.getenv("LLM_API_KEY"))
-    openai_api_key = _clean_env_value(os.getenv("OPENAI_API_KEY"))
     groq_api_key = _clean_env_value(os.getenv("GROQ_API_KEY"))
+    gemini_api_key = _clean_env_value(os.getenv("GEMINI_API_KEY"))
     google_api_key = _clean_env_value(os.getenv("GOOGLE_API_KEY"))
 
-    if provider == "openai":
-        api_key = openai_api_key or generic_api_key
-    elif provider == "groq":
+    if provider == "groq":
         api_key = groq_api_key or generic_api_key
     elif provider == "gemini":
-        api_key = google_api_key or generic_api_key
+        api_key = gemini_api_key or google_api_key or generic_api_key
     else:
         # Keep behavior predictable with unsupported values.
-        provider = "openai"
-        api_key = openai_api_key or generic_api_key
+        provider = "groq"
+        api_key = groq_api_key or generic_api_key
+        model_name = _resolve_model_name(provider, model_override)
 
     temperature_raw = os.getenv("LLM_TEMPERATURE", "0")
     max_tokens_raw = os.getenv("LLM_MAX_TOKENS", "500")
@@ -108,3 +160,20 @@ def load_config() -> LLMConfig:
         max_tokens=max_tokens,
         api_base=api_base,
     )
+
+
+def get_config_options() -> Dict[str, Any]:
+    """Expose provider/model options for UI clients."""
+    active = load_config()
+    available_models = get_available_models()
+    return {
+        "active_provider": active.provider,
+        "active_model": active.model_name,
+        "providers": [
+            {
+                "name": provider,
+                "default_model": available_models.get(provider, ""),
+            }
+            for provider in sorted(SUPPORTED_PROVIDERS)
+        ],
+    }

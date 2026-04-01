@@ -57,6 +57,7 @@
         const API_BASE = "http://127.0.0.1:5000";
         let currentFileId = null;
         let processingIntervalId = null;
+        let llmOptions = null;
 
         // Handle file selection
         document.getElementById("file-input").addEventListener("change", async (e) => {
@@ -173,6 +174,12 @@
             content.innerHTML = `
                 <div class="query-section">
                     <h2>🔍 Ask a question about this chat</h2>
+                    <div class="query-input-group query-config-row">
+                        <label for="llm-provider" class="query-config-label">Provider</label>
+                        <select id="llm-provider" onchange="onProviderChange()"></select>
+                        <label for="llm-model" class="query-config-label">Model</label>
+                        <input type="text" id="llm-model" placeholder="Model name" />
+                    </div>
                     <div class="query-input-group">
                         <input 
                             type="text" 
@@ -185,10 +192,59 @@
                 </div>
                 <div id="results-area"></div>
             `;
+
+            initializeLLMSelectors();
+        }
+
+        async function loadLLMOptions() {
+            try {
+                const res = await fetch(`${API_BASE}/llm/options`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Failed to load LLM options");
+                llmOptions = data;
+            } catch (err) {
+                console.error("LLM options error:", err);
+                llmOptions = {
+                    active_provider: "groq",
+                    active_model: "llama-3.1-8b-instant",
+                    providers: [
+                        { name: "groq", default_model: "llama-3.1-8b-instant" },
+                        { name: "gemini", default_model: "gemini-2.5-flash" },
+                    ],
+                };
+            }
+        }
+
+        function initializeLLMSelectors() {
+            const providerSelect = document.getElementById("llm-provider");
+            const modelInput = document.getElementById("llm-model");
+            if (!providerSelect || !modelInput || !llmOptions) return;
+
+            providerSelect.innerHTML = llmOptions.providers
+                .map((p) => `<option value="${p.name}">${p.name}</option>`)
+                .join("");
+
+            providerSelect.value = llmOptions.active_provider || "groq";
+            const activeProvider = llmOptions.providers.find((p) => p.name === providerSelect.value);
+            modelInput.value = llmOptions.active_model || (activeProvider ? activeProvider.default_model : "");
+        }
+
+        function onProviderChange() {
+            const providerSelect = document.getElementById("llm-provider");
+            const modelInput = document.getElementById("llm-model");
+            if (!providerSelect || !modelInput || !llmOptions) return;
+
+            const selectedProvider = providerSelect.value;
+            const selected = llmOptions.providers.find((p) => p.name === selectedProvider);
+            if (selected && selected.default_model) {
+                modelInput.value = selected.default_model;
+            }
         }
 
         async function runQuery() {
             const query = document.getElementById("query-input").value.trim();
+            const llmProvider = (document.getElementById("llm-provider")?.value || "").trim();
+            const llmModel = (document.getElementById("llm-model")?.value || "").trim();
             if (!query || !currentFileId) return;
 
             const queryBtn = document.querySelector(".query-btn");
@@ -203,13 +259,15 @@
                         file_id: currentFileId,
                         query: query,
                         top_k: 8,
+                        llm_provider: llmProvider,
+                        llm_model: llmModel,
                     }),
                 });
 
                 const data = await res.json();
 
                 if (res.ok) {
-                    displayResult(query, data.decision, data.chunks_retrieved);
+                    displayResult(query, data.decision, data.chunks_retrieved, data.llm);
                 } else {
                     showError(`Query failed: ${data.error}`);
                 }
@@ -221,45 +279,158 @@
             }
         }
 
-        function displayResult(query, decision, chunksCount) {
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function parseNarrativeFromRawResponse(rawResponse, fallbackDecision) {
+            const raw = String(rawResponse || "").trim();
+            let finalDecision = String(fallbackDecision || "").trim();
+            let explanation = "";
+            let decisionMadeBy = "";
+            let decisionTimestamp = "";
+            let decisionMessage = "";
+
+            if (!raw) {
+                return {
+                    finalDecision,
+                    explanation,
+                    decisionMadeBy,
+                    decisionTimestamp,
+                    decisionMessage,
+                    hasNarrative: false,
+                    raw,
+                };
+            }
+
+            const cleaned = raw
+                .replace(/^```json\s*/i, "")
+                .replace(/^```\s*/i, "")
+                .replace(/\s*```$/i, "")
+                .trim();
+
+            const finalMatch = cleaned.match(
+                /Final Decision:\s*([\s\S]*?)(?:\n\s*This decision was made by|\n\s*Explanation:|\n\s*\{|$)/i
+            );
+            if (finalMatch && finalMatch[1]) {
+                finalDecision = finalMatch[1].trim().replace(/^\"|\"$/g, "");
+            }
+
+            const attributionMatch = cleaned.match(
+                /This decision was made by\s+([\s\S]*?)\s+at\s+([\s\S]*?),\s*as stated in the message:/i
+            );
+            if (attributionMatch) {
+                decisionMadeBy = String(attributionMatch[1] || "").trim().replace(/^\"|\"$/g, "");
+                decisionTimestamp = String(attributionMatch[2] || "").trim().replace(/^\"|\"$/g, "");
+            }
+
+            const messageMatch = cleaned.match(/as stated in the message:\s*\n\s*"([\s\S]*?)"/i);
+            if (messageMatch && messageMatch[1]) {
+                decisionMessage = messageMatch[1].trim();
+            }
+
+            const explanationMatch = cleaned.match(/Explanation:\s*([\s\S]*?)(?:\n\s*\{|$)/i);
+            if (explanationMatch && explanationMatch[1]) {
+                explanation = explanationMatch[1].trim().replace(/^\"|\"$/g, "");
+            }
+
+            return {
+                finalDecision,
+                explanation,
+                decisionMadeBy,
+                decisionTimestamp,
+                decisionMessage,
+                hasNarrative: Boolean(finalMatch || explanationMatch || attributionMatch || messageMatch),
+                raw,
+            };
+        }
+
+        function displayResult(query, decision, chunksCount, llmInfo) {
             const resultsArea = document.getElementById("results-area");
             const hasEvidence = decision.evidence && decision.evidence.length > 0;
-            const confidenceClass = `confidence-${decision.confidence.toLowerCase()}`;
+            const confidenceScoreRaw = Number(
+                decision.confidence_score ?? decision.confidence ?? 0
+            );
+            const confidenceScore = Number.isFinite(confidenceScoreRaw) ? confidenceScoreRaw : 0;
+            const confidenceDisplay = confidenceScore.toFixed(6);
+            const parsedNarrative = parseNarrativeFromRawResponse(decision.raw_response, decision.decision);
+            const finalDecision = parsedNarrative.finalDecision || String(decision.decision || "").trim();
+            const explanation = parsedNarrative.explanation;
+            const decisionMadeBy = parsedNarrative.decisionMadeBy;
+            const decisionTimestamp = parsedNarrative.decisionTimestamp;
+            const decisionMessage = parsedNarrative.decisionMessage;
+            const hasDecisionDetails = Boolean(decisionMadeBy || decisionTimestamp || decisionMessage || explanation);
+            const showRawResponse = parsedNarrative.raw.length > 0 && !parsedNarrative.hasNarrative;
 
             resultsArea.innerHTML = `
                 <div class="result">
                     <h3>Decision Extracted</h3>
                     <div class="decision-box">
-                        <div class="decision-label">Decision</div>
-                        <div class="decision-text">${decision.decision}</div>
-                        <span class="confidence-badge ${confidenceClass}">
-                            ${decision.confidence} Confidence
+                        <div class="decision-label">Final Decision</div>
+                        <div class="decision-text">${escapeHtml(finalDecision)}</div>
+                        <span class="confidence-badge">
+                            Retrieval Score: ${escapeHtml(confidenceDisplay)}
                         </span>
                     </div>
 
                     ${
-                        hasEvidence
+                        hasDecisionDetails
                             ? `
-                        <div>
-                            <p style="font-size: 13px; margin-bottom: 10px; color: #666;">
-                                Found in <strong>${chunksCount}</strong> relevant messages:
+                        <div class="decision-details-box">
+                            <div class="decision-label">Decision Details</div>
+                            <div class="decision-details-meta">
+                                This decision was made by <strong>${escapeHtml(decisionMadeBy || "Unknown")}</strong>
+                                at <strong>${escapeHtml(decisionTimestamp || "Unknown time")}</strong>
+                            </div>
+                            <div class="decision-details-quote-label">As stated in the message</div>
+                            <div class="decision-details-quote">"${escapeHtml(decisionMessage || "No explicit decision message found.")}"</div>
+                            <div class="decision-details-explanation-label">Explanation</div>
+                            <div class="decision-details-explanation">${escapeHtml(explanation || "No explanation was returned by the model.")}</div>
+                        </div>
+                    `
+                            : ""
+                    }
+
+                    <div class="evidence-box">
+                        <div class="decision-label">Evidence</div>
+                        ${
+                            hasEvidence
+                                ? `
+                            <p class="evidence-summary">
+                                Found in <strong>${escapeHtml(chunksCount)}</strong> relevant messages:
                             </p>
                             <div class="evidence">
                                 ${decision.evidence
                                     .map(
                                         (e) => `
                                     <div class="evidence-item">
-                                        <div class="evidence-author">@${e.user}</div>
-                                        <div class="evidence-text">"${e.text}"</div>
-                                        <div class="evidence-time">${e.timestamp}</div>
+                                        <div class="evidence-author">@${escapeHtml(e.user)}</div>
+                                        <div class="evidence-text">"${escapeHtml(e.text)}"</div>
+                                        <div class="evidence-time">${escapeHtml(e.timestamp)}</div>
                                     </div>
                                 `
                                     )
                                     .join("")}
                             </div>
+                        `
+                                : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
+                        }
+                    </div>
+
+                    ${
+                        showRawResponse
+                            ? `
+                        <div style="margin-top: 14px; padding: 12px; background: #f9f9fb; border: 1px solid #ececf2; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 6px;">Model response</div>
+                            <div style="font-size: 13px; line-height: 1.5; white-space: pre-wrap; color: #2e2e35;">${escapeHtml(parsedNarrative.raw)}</div>
                         </div>
                     `
-                            : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
+                            : ""
                     }
                 </div>
             `;
@@ -270,8 +441,10 @@
             resultsArea.innerHTML = `<div class="error">❌ ${message}</div>`;
         }
 
-        // Load initial file list
-        loadFiles();
+        // Load initial file list and available models
+        loadLLMOptions().then(() => {
+            loadFiles();
+        });
     </script>
 </body>
 </html>
