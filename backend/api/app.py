@@ -369,20 +369,92 @@ def query_file():
         decision_response = format_decision_response(decision)
         _log("[QUERY] LLM formatted response:\n" + decision_response)
         
-        # Save decision to database
-        decision_obj = Decision(
-            query=query,
-            extracted_decision=decision.get("decision", ""),
-            confidence=decision.get("confidence", "Low"),
-            file_id=file_id,
-            status="Open",
-            priority="Medium",
-            category="General"
-        )
-        db.session.add(decision_obj)
-        db.session.flush()  # Get the ID without committing yet
+        # Check if this decision already exists (same extracted_decision text)
+        from sqlalchemy import select
+        extracted_text = decision.get("decision", "").strip()
+        existing_query = select(Decision).where(Decision.extracted_decision == extracted_text)
+        existing_decision = db.session.execute(existing_query).scalars().first()
         
-        # Save evidence
+        if existing_decision:
+            # Update existing decision
+            _log(f"[QUERY] Found existing decision (ID: {existing_decision.id}), updating...")
+            decision_obj = existing_decision
+            
+            # Track changes in history
+            old_confidence = decision_obj.confidence
+            new_confidence = decision.get("confidence", "Low")
+            if old_confidence != new_confidence:
+                history = DecisionHistory(
+                    decision_id=decision_obj.id,
+                    field_name="confidence",
+                    old_value=old_confidence,
+                    new_value=new_confidence,
+                    changed_by="system"
+                )
+                db.session.add(history)
+            
+            # Update timestamp and confidence
+            decision_obj.confidence = new_confidence
+            decision_obj.updated_at = datetime.utcnow()
+            
+            # Update evidence: clear old and add new
+            from sqlalchemy import delete
+            db.session.execute(delete(DecisionEvidence).where(DecisionEvidence.decision_id == decision_obj.id))
+            
+            # Update action items: keep existing ones, add new ones
+            # First, remove action items that are no longer in the extracted data
+            existing_tasks = {a.task for a in decision_obj.action_items}
+            new_tasks = {action.get("task", "") for action in decision.get("action_items", [])}
+            tasks_to_remove = existing_tasks - new_tasks
+            for task in tasks_to_remove:
+                db.session.execute(delete(ActionItem).where(
+                    (ActionItem.decision_id == decision_obj.id) & (ActionItem.task == task)
+                ))
+            
+            # Add new action items
+            for action in decision.get("action_items", []):
+                task_text = action.get("task", "")
+                from sqlalchemy import select
+                existing_action_query = select(ActionItem).where(
+                    (ActionItem.decision_id == decision_obj.id) & (ActionItem.task == task_text)
+                )
+                existing_action = db.session.execute(existing_action_query).scalars().first()
+                if not existing_action:
+                    action_obj = ActionItem(
+                        decision_id=decision_obj.id,
+                        task=task_text,
+                        owner=action.get("owner"),
+                        due_date=action.get("due_date"),
+                        status="Open"
+                    )
+                    db.session.add(action_obj)
+        else:
+            # Create new decision
+            _log("[QUERY] Creating new decision...")
+            decision_obj = Decision(
+                query=query,
+                extracted_decision=extracted_text,
+                confidence=decision.get("confidence", "Low"),
+                file_id=file_id,
+                status="Open",
+                priority="Medium",
+                category="General"
+            )
+            db.session.add(decision_obj)
+            db.session.flush()  # Get the ID without committing yet
+            
+            # Save action items for new decision
+            for action in decision.get("action_items", []):
+                action_obj = ActionItem(
+                    decision_id=decision_obj.id,
+                    task=action.get("task", ""),
+                    owner=action.get("owner"),
+                    due_date=action.get("due_date"),
+                    status="Open"
+                )
+                db.session.add(action_obj)
+        
+        # Save evidence (new or updated)
         evidence_list = decision.get("evidence", [])
         for evid in evidence_list:
             evidence_obj = DecisionEvidence(
@@ -394,20 +466,9 @@ def query_file():
             )
             db.session.add(evidence_obj)
         
-        # Save action items
-        action_items = decision.get("action_items", [])
-        for action in action_items:
-            action_obj = ActionItem(
-                decision_id=decision_obj.id,
-                task=action.get("task", ""),
-                owner=action.get("owner"),
-                due_date=action.get("due_date"),
-                status="Open"
-            )
-            db.session.add(action_obj)
-        
         db.session.commit()
         
+        action = "updated" if existing_decision else "created"
         return jsonify(
             {
                 "file_id": file_id,
@@ -416,6 +477,8 @@ def query_file():
                 "decision_id": decision_obj.id,
                 "decision": decision,
                 "decision_response": decision_response,
+                "action": action,
+                "message": f"Decision {action} successfully"
             }
         ), 200
     except Exception as exc:
@@ -454,13 +517,23 @@ def list_decisions():
     }), 200
 
 
-@app.route("/decisions/<int:decision_id>", methods=["GET"])
+@app.route("/decisions/<int:decision_id>", methods=["GET", "DELETE"])
 def get_decision(decision_id: int):
-    """Get a specific decision with full details."""
+    """Get a specific decision with full details or delete it."""
     decision = db.session.get(Decision, decision_id)
     if not decision:
         return jsonify({"error": "Decision not found"}), 404
     
+    if request.method == "DELETE":
+        try:
+            db.session.delete(decision)
+            db.session.commit()
+            return jsonify({"message": "Decision deleted successfully"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": f"Failed to delete decision: {str(e)}"}), 500
+    
+    # GET request
     return jsonify(decision.to_dict()), 200
 
 
@@ -658,6 +731,7 @@ def update_decision_action(decision_id: int, action_id: int):
     
     db.session.commit()
     return jsonify(action.to_dict()), 200
+
 
 
 if __name__ == "__main__":
