@@ -370,25 +370,47 @@ def query_file():
         _log("[QUERY] LLM formatted response:\n" + decision_response)
         
         # Check if this decision already exists
-        # Match by: same file_id (source) + same query (what was asked)
+        # Match by: QUERY ALONE (across all files/days)
         # Normalize query for comparison (lowercase, strip whitespace)
-        # This groups related decisions together even if the text changes slightly
+        # This allows the same topic asked on different days/files to be tracked
+        # as ONE decision with history across all exports
         from sqlalchemy import select, func
         
         # Normalize the current query for consistent matching
         normalized_query = query.strip().lower()
-        _log(f"[QUERY] Checking for existing decision: file_id={file_id!r}, normalized_query={normalized_query!r}")
+        _log(f"[QUERY] Checking for existing decision (across all files): query={normalized_query!r}")
         
         # Search for existing decision with normalized query comparison
+        # IMPORTANT: We DON'T filter by file_id - same question on different days updates same decision
         existing_query_result = select(Decision).where(
-            (Decision.file_id == file_id) & 
-            (func.lower(func.trim(Decision.query)) == normalized_query)
+            func.lower(func.trim(Decision.query)) == normalized_query
         )
         existing_decision = db.session.execute(existing_query_result).scalars().first()
         
         if existing_decision:
             _log(f"[QUERY] ✓ Found existing decision (ID: {existing_decision.id}), will UPDATE it")
             decision_obj = existing_decision
+            
+            # Track source files: maintain list of all files that have updated this decision
+            import json
+            try:
+                source_files = json.loads(decision_obj.source_files) if decision_obj.source_files else []
+            except:
+                source_files = []
+            
+            if file_id not in source_files:
+                source_files.append(file_id)
+                decision_obj.source_files = json.dumps(source_files)
+                # Log that this decision was updated from a new source
+                history = DecisionHistory(
+                    decision_id=decision_obj.id,
+                    field_name="source_file",
+                    old_value=decision_obj.file_id,
+                    new_value=file_id,
+                    changed_by="system"
+                )
+                db.session.add(history)
+                _log(f"[QUERY] Added new source file: {file_id}, total sources: {source_files}")
             
             # Track changes in history for all updated fields
             old_decision_text = decision_obj.extracted_decision
@@ -457,11 +479,13 @@ def query_file():
             _log(f"[QUERY] ✗ No existing decision found - CREATING new decision")
             _log(f"[QUERY] Creating decision with: file_id={file_id!r}, normalized_query={normalized_query!r}")
             # Store normalized query to ensure consistent matching
+            import json
             decision_obj = Decision(
                 query=query.strip(),
                 extracted_decision=decision.get("decision", "").strip(),
                 confidence=decision.get("confidence", "Low"),
                 file_id=file_id,
+                source_files=json.dumps([file_id]),  # Initialize with first source file
                 status="Open",
                 priority="Medium",
                 category="General"

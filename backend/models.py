@@ -11,7 +11,8 @@ class Decision(db.Model):
     query = db.Column(db.String(500), nullable=False)
     extracted_decision = db.Column(db.Text, nullable=False)
     confidence = db.Column(db.String(20))  # High, Medium, Low
-    file_id = db.Column(db.String(100), nullable=False)
+    file_id = db.Column(db.String(100), nullable=False)  # First source file
+    source_files = db.Column(db.Text, default='')  # JSON list of all file_ids this was updated from
     status = db.Column(db.String(50), default='Open')  # Open, In-Progress, Closed
     owner = db.Column(db.String(100))  # Name/email of person responsible
     priority = db.Column(db.String(20), default='Medium')  # High, Medium, Low
@@ -32,6 +33,7 @@ class Decision(db.Model):
             'decision': self.extracted_decision,
             'confidence': self.confidence,
             'file_id': self.file_id,
+            'source_files': self.source_files,
             'status': self.status,
             'owner': self.owner,
             'priority': self.priority,
