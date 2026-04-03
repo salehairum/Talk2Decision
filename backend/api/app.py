@@ -371,16 +371,23 @@ def query_file():
         
         # Check if this decision already exists
         # Match by: same file_id (source) + same query (what was asked)
+        # Normalize query for comparison (lowercase, strip whitespace)
         # This groups related decisions together even if the text changes slightly
-        from sqlalchemy import select
+        from sqlalchemy import select, func
+        
+        # Normalize the current query for consistent matching
+        normalized_query = query.strip().lower()
+        _log(f"[QUERY] Checking for existing decision: file_id={file_id!r}, normalized_query={normalized_query!r}")
+        
+        # Search for existing decision with normalized query comparison
         existing_query_result = select(Decision).where(
-            (Decision.file_id == file_id) & (Decision.query == query)
+            (Decision.file_id == file_id) & 
+            (func.lower(func.trim(Decision.query)) == normalized_query)
         )
         existing_decision = db.session.execute(existing_query_result).scalars().first()
         
         if existing_decision:
-            # Update existing decision
-            _log(f"[QUERY] Found existing decision (ID: {existing_decision.id}), updating...")
+            _log(f"[QUERY] ✓ Found existing decision (ID: {existing_decision.id}), will UPDATE it")
             decision_obj = existing_decision
             
             # Track changes in history for all updated fields
@@ -447,9 +454,11 @@ def query_file():
                     db.session.add(action_obj)
         else:
             # Create new decision
-            _log("[QUERY] Creating new decision...")
+            _log(f"[QUERY] ✗ No existing decision found - CREATING new decision")
+            _log(f"[QUERY] Creating decision with: file_id={file_id!r}, normalized_query={normalized_query!r}")
+            # Store normalized query to ensure consistent matching
             decision_obj = Decision(
-                query=query,
+                query=query.strip(),
                 extracted_decision=decision.get("decision", "").strip(),
                 confidence=decision.get("confidence", "Low"),
                 file_id=file_id,
