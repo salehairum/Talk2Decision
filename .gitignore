@@ -4,3 +4,12 @@ __pycache__/
 .model_cache/
 .index_store/
 pipeline/__pycache__/
+backend/context-extraction/data/
+
+# Database
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.pyc

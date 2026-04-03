@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 backend_dir = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(backend_dir / "context-extraction" / "pipeline"))
 sys.path.insert(0, str(backend_dir / "llm-pipeline"))
+sys.path.insert(0, str(backend_dir))  # Add backend dir for models import
 
 from loader import load_slack_export
 from preprocess import preprocess_messages
@@ -29,9 +30,20 @@ from query import run_query
 from config import load_config
 from llm_pipeline import extract_decision, chunks_to_messages, format_decision_response
 
+# Import database models
+from models import db, Decision, DecisionEvidence, ActionItem, DecisionHistory, Stakeholder
+
 
 app = Flask(__name__, static_folder=str(backend_dir.parents[0] / "frontend"), static_url_path="/static")
 CORS(app)
+
+# Initialize database
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{backend_dir}/talk2decision.db"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
 
 DATA_DIR = backend_dir / "context-extraction" / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -357,11 +369,51 @@ def query_file():
         decision_response = format_decision_response(decision)
         _log("[QUERY] LLM formatted response:\n" + decision_response)
         
+        # Save decision to database
+        decision_obj = Decision(
+            query=query,
+            extracted_decision=decision.get("decision", ""),
+            confidence=decision.get("confidence", "Low"),
+            file_id=file_id,
+            status="Open",
+            priority="Medium",
+            category="General"
+        )
+        db.session.add(decision_obj)
+        db.session.flush()  # Get the ID without committing yet
+        
+        # Save evidence
+        evidence_list = decision.get("evidence", [])
+        for evid in evidence_list:
+            evidence_obj = DecisionEvidence(
+                decision_id=decision_obj.id,
+                user=evid.get("user", ""),
+                text=evid.get("text", ""),
+                timestamp=evid.get("timestamp", ""),
+                source_file=file_id
+            )
+            db.session.add(evidence_obj)
+        
+        # Save action items
+        action_items = decision.get("action_items", [])
+        for action in action_items:
+            action_obj = ActionItem(
+                decision_id=decision_obj.id,
+                task=action.get("task", ""),
+                owner=action.get("owner"),
+                due_date=action.get("due_date"),
+                status="Open"
+            )
+            db.session.add(action_obj)
+        
+        db.session.commit()
+        
         return jsonify(
             {
                 "file_id": file_id,
                 "query": query,
                 "chunks_retrieved": len(results),
+                "decision_id": decision_obj.id,
                 "decision": decision,
                 "decision_response": decision_response,
             }
@@ -369,6 +421,243 @@ def query_file():
     except Exception as exc:
         _log(f"[QUERY] ERROR: {exc}")
         return jsonify({"error": f"Query failed: {str(exc)}"}), 500
+
+
+# ============================================================================
+# Decision Management Endpoints
+# ============================================================================
+
+@app.route("/decisions", methods=["GET"])
+def list_decisions():
+    """List all tracked decisions with filters."""
+    from sqlalchemy import select
+    
+    status = request.args.get("status")
+    owner = request.args.get("owner")
+    category = request.args.get("category")
+    
+    query = select(Decision)
+    
+    if status:
+        query = query.where(Decision.status == status)
+    if owner:
+        query = query.where(Decision.owner == owner)
+    if category:
+        query = query.where(Decision.category == category)
+    
+    query = query.order_by(Decision.created_at.desc())
+    decisions = db.session.execute(query).scalars().all()
+    
+    return jsonify({
+        "count": len(decisions),
+        "decisions": [d.to_dict() for d in decisions]
+    }), 200
+
+
+@app.route("/decisions/<int:decision_id>", methods=["GET"])
+def get_decision(decision_id: int):
+    """Get a specific decision with full details."""
+    decision = db.session.get(Decision, decision_id)
+    if not decision:
+        return jsonify({"error": "Decision not found"}), 404
+    
+    return jsonify(decision.to_dict()), 200
+
+
+@app.route("/decisions/<int:decision_id>/history", methods=["GET"])
+def get_decision_history(decision_id: int):
+    """Get audit trail of decision changes."""
+    from sqlalchemy import select
+    
+    decision = db.session.get(Decision, decision_id)
+    if not decision:
+        return jsonify({"error": "Decision not found"}), 404
+    
+    query = select(DecisionHistory).where(DecisionHistory.decision_id == decision_id).order_by(DecisionHistory.changed_at.asc())
+    history = db.session.execute(query).scalars().all()
+    
+    return jsonify({
+        "decision_id": decision_id,
+        "history": [h.to_dict() for h in history]
+    }), 200
+
+
+@app.route("/decisions/<int:decision_id>/status", methods=["POST"])
+def update_decision_status(decision_id: int):
+    """Update decision status and log change."""
+    data = request.get_json()
+    if not data or "status" not in data:
+        return jsonify({"error": "Missing status"}), 400
+    
+    decision = db.session.get(Decision, decision_id)
+    if not decision:
+        return jsonify({"error": "Decision not found"}), 404
+    
+    new_status = data.get("status").strip()
+    old_status = decision.status
+    
+    if new_status != old_status:
+        decision.status = new_status
+        
+        # Log change
+        history = DecisionHistory(
+            decision_id=decision_id,
+            field_name="status",
+            old_value=old_status,
+            new_value=new_status,
+            changed_by=data.get("changed_by", "system")
+        )
+        db.session.add(history)
+    
+    db.session.commit()
+    return jsonify(decision.to_dict()), 200
+
+
+@app.route("/decisions/<int:decision_id>/owner", methods=["POST"])
+def update_decision_owner(decision_id: int):
+    """Update decision owner and log change."""
+    data = request.get_json()
+    if not data or "owner" not in data:
+        return jsonify({"error": "Missing owner"}), 400
+    
+    decision = db.session.get(Decision, decision_id)
+    if not decision:
+        return jsonify({"error": "Decision not found"}), 404
+    
+    new_owner = data.get("owner").strip() if data.get("owner") else None
+    old_owner = decision.owner
+    
+    if new_owner != old_owner:
+        decision.owner = new_owner
+        
+        # Log change
+        history = DecisionHistory(
+            decision_id=decision_id,
+            field_name="owner",
+            old_value=old_owner,
+            new_value=new_owner,
+            changed_by=data.get("changed_by", "system")
+        )
+        db.session.add(history)
+    
+    db.session.commit()
+    return jsonify(decision.to_dict()), 200
+
+
+@app.route("/decisions/<int:decision_id>/metadata", methods=["POST"])
+def update_decision_metadata(decision_id: int):
+    """Update decision metadata (priority, category, etc)."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    decision = db.session.get(Decision, decision_id)
+    if not decision:
+        return jsonify({"error": "Decision not found"}), 404
+    
+    # Update priority if provided
+    if "priority" in data:
+        new_priority = data.get("priority").strip()
+        old_priority = decision.priority
+        if new_priority != old_priority:
+            decision.priority = new_priority
+            history = DecisionHistory(
+                decision_id=decision_id,
+                field_name="priority",
+                old_value=old_priority,
+                new_value=new_priority,
+                changed_by=data.get("changed_by", "system")
+            )
+            db.session.add(history)
+    
+    # Update category if provided
+    if "category" in data:
+        new_category = data.get("category").strip()
+        old_category = decision.category
+        if new_category != old_category:
+            decision.category = new_category
+            history = DecisionHistory(
+                decision_id=decision_id,
+                field_name="category",
+                old_value=old_category,
+                new_value=new_category,
+                changed_by=data.get("changed_by", "system")
+            )
+            db.session.add(history)
+    
+    db.session.commit()
+    return jsonify(decision.to_dict()), 200
+
+
+@app.route("/decisions/<int:decision_id>/actions", methods=["GET"])
+def get_decision_actions(decision_id: int):
+    """Get all action items for a decision."""
+    from sqlalchemy import select
+    
+    decision = db.session.get(Decision, decision_id)
+    if not decision:
+        return jsonify({"error": "Decision not found"}), 404
+    
+    query = select(ActionItem).where(ActionItem.decision_id == decision_id)
+    actions = db.session.execute(query).scalars().all()
+    return jsonify({
+        "decision_id": decision_id,
+        "action_items": [a.to_dict() for a in actions]
+    }), 200
+
+
+@app.route("/decisions/<int:decision_id>/actions", methods=["POST"])
+def add_decision_action(decision_id: int):
+    """Add a new action item to a decision."""
+    data = request.get_json()
+    if not data or "task" not in data:
+        return jsonify({"error": "Missing task"}), 400
+    
+    decision = db.session.get(Decision, decision_id)
+    if not decision:
+        return jsonify({"error": "Decision not found"}), 404
+    
+    action = ActionItem(
+        decision_id=decision_id,
+        task=data.get("task").strip(),
+        owner=data.get("owner", "").strip() or None,
+        due_date=data.get("due_date", "").strip() or None,
+        status="Open"
+    )
+    db.session.add(action)
+    db.session.commit()
+    
+    return jsonify(action.to_dict()), 201
+
+
+@app.route("/decisions/<int:decision_id>/actions/<int:action_id>", methods=["POST"])
+def update_decision_action(decision_id: int, action_id: int):
+    """Update an action item status."""
+    from sqlalchemy import select
+    
+    data = request.get_json()
+    
+    query = select(ActionItem).where(
+        (ActionItem.id == action_id) & (ActionItem.decision_id == decision_id)
+    )
+    action = db.session.execute(query).scalars().first()
+    if not action:
+        return jsonify({"error": "Action item not found"}), 404
+    
+    # Update status if provided
+    if "status" in data:
+        action.status = data.get("status").strip()
+    
+    # Update owner if provided
+    if "owner" in data:
+        action.owner = data.get("owner").strip() or None
+    
+    # Update due_date if provided
+    if "due_date" in data:
+        action.due_date = data.get("due_date").strip() or None
+    
+    db.session.commit()
+    return jsonify(action.to_dict()), 200
 
 
 if __name__ == "__main__":
