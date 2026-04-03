@@ -369,18 +369,33 @@ def query_file():
         decision_response = format_decision_response(decision)
         _log("[QUERY] LLM formatted response:\n" + decision_response)
         
-        # Check if this decision already exists (same extracted_decision text)
+        # Check if this decision already exists
+        # Match by: same file_id (source) + same query (what was asked)
+        # This groups related decisions together even if the text changes slightly
         from sqlalchemy import select
-        extracted_text = decision.get("decision", "").strip()
-        existing_query = select(Decision).where(Decision.extracted_decision == extracted_text)
-        existing_decision = db.session.execute(existing_query).scalars().first()
+        existing_query_result = select(Decision).where(
+            (Decision.file_id == file_id) & (Decision.query == query)
+        )
+        existing_decision = db.session.execute(existing_query_result).scalars().first()
         
         if existing_decision:
             # Update existing decision
             _log(f"[QUERY] Found existing decision (ID: {existing_decision.id}), updating...")
             decision_obj = existing_decision
             
-            # Track changes in history
+            # Track changes in history for all updated fields
+            old_decision_text = decision_obj.extracted_decision
+            new_decision_text = decision.get("decision", "").strip()
+            if old_decision_text != new_decision_text:
+                history = DecisionHistory(
+                    decision_id=decision_obj.id,
+                    field_name="decision",
+                    old_value=old_decision_text,
+                    new_value=new_decision_text,
+                    changed_by="system"
+                )
+                db.session.add(history)
+            
             old_confidence = decision_obj.confidence
             new_confidence = decision.get("confidence", "Low")
             if old_confidence != new_confidence:
@@ -393,8 +408,10 @@ def query_file():
                 )
                 db.session.add(history)
             
-            # Update timestamp and confidence
+            # Update decision fields
+            decision_obj.extracted_decision = new_decision_text
             decision_obj.confidence = new_confidence
+            decision_obj.status = "In-Progress"  # Move to in-progress when re-exported
             decision_obj.updated_at = datetime.utcnow()
             
             # Update evidence: clear old and add new
@@ -414,8 +431,8 @@ def query_file():
             # Add new action items
             for action in decision.get("action_items", []):
                 task_text = action.get("task", "")
-                from sqlalchemy import select
-                existing_action_query = select(ActionItem).where(
+                from sqlalchemy import select as sql_select
+                existing_action_query = sql_select(ActionItem).where(
                     (ActionItem.decision_id == decision_obj.id) & (ActionItem.task == task_text)
                 )
                 existing_action = db.session.execute(existing_action_query).scalars().first()
@@ -433,7 +450,7 @@ def query_file():
             _log("[QUERY] Creating new decision...")
             decision_obj = Decision(
                 query=query,
-                extracted_decision=extracted_text,
+                extracted_decision=decision.get("decision", "").strip(),
                 confidence=decision.get("confidence", "Low"),
                 file_id=file_id,
                 status="Open",
