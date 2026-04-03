@@ -74,9 +74,9 @@ else:
 
 # Check if same ID
 if r1['decision_id'] == r2['decision_id']:
-    print("✅ SUCCESS: Same query used same decision!")
+    print("SUCCESS: Same query used same decision!")
 else:
-    print("❌ FAILED: Same query created different decisions!")
+    print("FAILED: Same query created different decisions!")
 
 # Check final count
 response = requests.get(f"{BASE_URL}/decisions")

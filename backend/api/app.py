@@ -378,14 +378,21 @@ def query_file():
         
         # Normalize the current query for consistent matching
         normalized_query = query.strip().lower()
-        _log(f"[QUERY] Checking for existing decision (across all files): query={normalized_query!r}")
+        _log(f"[QUERY] normalized_query={normalized_query!r}")
         
         # Search for existing decision with normalized query comparison
         # IMPORTANT: We DON'T filter by file_id - same question on different days updates same decision
         existing_query_result = select(Decision).where(
             func.lower(func.trim(Decision.query)) == normalized_query
         )
+        # Debug: Check how many decisions exist
+        all_decisions = db.session.execute(select(Decision)).scalars().all()
+        _log(f"[QUERY] Total decisions in DB: {len(all_decisions)}")
+        for d in all_decisions:
+            _log(f"[QUERY]   - ID={d.id}, query={d.query!r}, normalized={d.query.strip().lower()!r}")
+        
         existing_decision = db.session.execute(existing_query_result).scalars().first()
+        _log(f"[QUERY] Query result: found={existing_decision is not None}, id={existing_decision.id if existing_decision else 'None'}")
         
         if existing_decision:
             _log(f"[QUERY] ✓ Found existing decision (ID: {existing_decision.id}), will UPDATE it")
