@@ -382,17 +382,27 @@ def query_file():
         
         # Search for existing decision with normalized query comparison
         # IMPORTANT: We DON'T filter by file_id - same question on different days updates same decision
-        existing_query_result = select(Decision).where(
-            func.lower(func.trim(Decision.query)) == normalized_query
-        )
-        # Debug: Check how many decisions exist
-        all_decisions = db.session.execute(select(Decision)).scalars().all()
-        _log(f"[QUERY] Total decisions in DB: {len(all_decisions)}")
-        for d in all_decisions:
-            _log(f"[QUERY]   - ID={d.id}, query={d.query!r}, normalized={d.query.strip().lower()!r}")
-        
-        existing_decision = db.session.execute(existing_query_result).scalars().first()
-        _log(f"[QUERY] Query result: found={existing_decision is not None}, id={existing_decision.id if existing_decision else 'None'}")
+        # Use a fresh database session to ensure we see all committed decisions
+        existing_decision = None
+        try:
+            from sqlalchemy.orm import Session
+            engine = db.engine
+            with Session(engine) as lookup_session:
+                existing_query_result = select(Decision).where(
+                    func.lower(func.trim(Decision.query)) == normalized_query
+                )
+                found = lookup_session.execute(existing_query_result).scalars().first()
+                
+                if found:
+                    # Re-fetch in the main session
+                    existing_id = found.id
+                    _log(f"[QUERY] Found existing decision ID={existing_id}")
+                    existing_decision = db.session.get(Decision, existing_id)
+                    _log(f"[QUERY] Re-fetched in main session: {existing_decision is not None}")
+        except Exception as e:
+            _log(f"[QUERY] ERROR during lookup: {e}")
+            import traceback
+            traceback.print_exc()
         
         if existing_decision:
             _log(f"[QUERY] ✓ Found existing decision (ID: {existing_decision.id}), will UPDATE it")
