@@ -402,8 +402,11 @@ def query_file():
             import traceback
             traceback.print_exc()
         
+        # Initialize flag to track if we should update the decision
+        should_update_decision = False
+        
         if existing_decision:
-            _log(f"[QUERY] ✓ Found existing decision (ID: {existing_decision.id}), will UPDATE it")
+            _log(f"[QUERY] ✓ Found existing decision (ID: {existing_decision.id})")
             decision_obj = existing_decision
             
             # Track source files: maintain list of all files that have updated this decision
@@ -413,82 +416,110 @@ def query_file():
             except:
                 source_files = []
             
+            # Confidence levels: High > Medium > Low
+            confidence_rank = {"High": 3, "Medium": 2, "Low": 1}
+            old_confidence = decision_obj.confidence
+            new_confidence = decision.get("confidence", "Low")
+            old_rank = confidence_rank.get(old_confidence, 0)
+            new_rank = confidence_rank.get(new_confidence, 0)
+            
+            # Check if we should update the decision
+            should_update_decision = new_rank >= old_rank
+            
+            if not should_update_decision:
+                _log(f"[QUERY] ⚠️  New confidence '{new_confidence}' is lower than existing '{old_confidence}' - NOT updating decision text")
+                _log(f"[QUERY] Will still track source file and mark as In-Progress")
+            
+            # Always track the source file, regardless of whether we update the decision
             if file_id not in source_files:
                 source_files.append(file_id)
                 decision_obj.source_files = json.dumps(source_files)
-                # Log that this decision was updated from a new source
+                _log(f"[QUERY] Added new source file: {file_id}, total sources: {source_files}")
+                
+                # Log source file change in history
                 history = DecisionHistory(
                     decision_id=decision_obj.id,
                     field_name="source_file",
-                    old_value=decision_obj.file_id,
-                    new_value=file_id,
-                    changed_by="system"
-                )
-                db.session.add(history)
-                _log(f"[QUERY] Added new source file: {file_id}, total sources: {source_files}")
-            
-            # Track changes in history for all updated fields
-            old_decision_text = decision_obj.extracted_decision
-            new_decision_text = decision.get("decision", "").strip()
-            if old_decision_text != new_decision_text:
-                history = DecisionHistory(
-                    decision_id=decision_obj.id,
-                    field_name="decision",
-                    old_value=old_decision_text,
-                    new_value=new_decision_text,
+                    old_value=",".join(source_files[:-1]) if len(source_files) > 1 else "(initial)",
+                    new_value=",".join(source_files),
                     changed_by="system"
                 )
                 db.session.add(history)
             
-            old_confidence = decision_obj.confidence
-            new_confidence = decision.get("confidence", "Low")
-            if old_confidence != new_confidence:
-                history = DecisionHistory(
-                    decision_id=decision_obj.id,
-                    field_name="confidence",
-                    old_value=old_confidence,
-                    new_value=new_confidence,
-                    changed_by="system"
-                )
-                db.session.add(history)
+            # Only update decision text and confidence if new one is better quality
+            if should_update_decision:
+                _log(f"[QUERY] Updating decision: confidence {old_confidence} → {new_confidence}")
+                
+                # Track changes in history for all updated fields
+                old_decision_text = decision_obj.extracted_decision
+                new_decision_text = decision.get("decision", "").strip()
+                if old_decision_text != new_decision_text:
+                    history = DecisionHistory(
+                        decision_id=decision_obj.id,
+                        field_name="decision",
+                        old_value=old_decision_text,
+                        new_value=new_decision_text,
+                        changed_by="system"
+                    )
+                    db.session.add(history)
+                    _log(f"[QUERY] Decision text updated")
+                
+                if old_confidence != new_confidence:
+                    history = DecisionHistory(
+                        decision_id=decision_obj.id,
+                        field_name="confidence",
+                        old_value=old_confidence,
+                        new_value=new_confidence,
+                        changed_by="system"
+                    )
+                    db.session.add(history)
+                
+                # Update decision fields with higher-confidence version
+                decision_obj.extracted_decision = new_decision_text
+                decision_obj.confidence = new_confidence
+            else:
+                _log(f"[QUERY] Keeping existing decision: confidence {old_confidence} is better than {new_confidence}")
             
-            # Update decision fields
-            decision_obj.extracted_decision = new_decision_text
-            decision_obj.confidence = new_confidence
-            decision_obj.status = "In-Progress"  # Move to in-progress when re-exported
+            # Always move to in-progress when re-exported
+            decision_obj.status = "In-Progress"
             decision_obj.updated_at = datetime.utcnow()
             
-            # Update evidence: clear old and add new
-            from sqlalchemy import delete
-            db.session.execute(delete(DecisionEvidence).where(DecisionEvidence.decision_id == decision_obj.id))
-            
-            # Update action items: keep existing ones, add new ones
-            # First, remove action items that are no longer in the extracted data
-            existing_tasks = {a.task for a in decision_obj.action_items}
-            new_tasks = {action.get("task", "") for action in decision.get("action_items", [])}
-            tasks_to_remove = existing_tasks - new_tasks
-            for task in tasks_to_remove:
-                db.session.execute(delete(ActionItem).where(
-                    (ActionItem.decision_id == decision_obj.id) & (ActionItem.task == task)
-                ))
-            
-            # Add new action items
-            for action in decision.get("action_items", []):
-                task_text = action.get("task", "")
-                from sqlalchemy import select as sql_select
-                existing_action_query = sql_select(ActionItem).where(
-                    (ActionItem.decision_id == decision_obj.id) & (ActionItem.task == task_text)
-                )
-                existing_action = db.session.execute(existing_action_query).scalars().first()
-                if not existing_action:
-                    action_obj = ActionItem(
-                        decision_id=decision_obj.id,
-                        task=task_text,
-                        owner=action.get("owner"),
-                        due_date=action.get("due_date"),
-                        status="Open"
+            # Only update evidence and action items if we're updating the decision
+            if should_update_decision:
+                # Update evidence: clear old and add new
+                from sqlalchemy import delete
+                db.session.execute(delete(DecisionEvidence).where(DecisionEvidence.decision_id == decision_obj.id))
+                
+                # Update action items: keep existing ones, add new ones
+                # First, remove action items that are no longer in the extracted data
+                existing_tasks = {a.task for a in decision_obj.action_items}
+                new_tasks = {action.get("task", "") for action in decision.get("action_items", [])}
+                tasks_to_remove = existing_tasks - new_tasks
+                for task in tasks_to_remove:
+                    db.session.execute(delete(ActionItem).where(
+                        (ActionItem.decision_id == decision_obj.id) & (ActionItem.task == task)
+                    ))
+                
+                # Add new action items
+                for action in decision.get("action_items", []):
+                    task_text = action.get("task", "")
+                    from sqlalchemy import select as sql_select
+                    existing_action_query = sql_select(ActionItem).where(
+                        (ActionItem.decision_id == decision_obj.id) & (ActionItem.task == task_text)
                     )
-                    db.session.add(action_obj)
+                    existing_action = db.session.execute(existing_action_query).scalars().first()
+                    if not existing_action:
+                        action_obj = ActionItem(
+                            decision_id=decision_obj.id,
+                            task=task_text,
+                            owner=action.get("owner"),
+                            due_date=action.get("due_date"),
+                            status="Open"
+                        )
+                        db.session.add(action_obj)
+                _log(f"[QUERY] Updated evidence and action items for existing decision")
+            else:
+                _log(f"[QUERY] Keeping existing evidence and action items (decision not updated due to lower confidence)")
         else:
             # Create new decision
             _log(f"[QUERY] ✗ No existing decision found - CREATING new decision")
@@ -518,18 +549,31 @@ def query_file():
                     status="Open"
                 )
                 db.session.add(action_obj)
+            
+            # Save evidence for new decision
+            evidence_list = decision.get("evidence", [])
+            for evid in evidence_list:
+                evidence_obj = DecisionEvidence(
+                    decision_id=decision_obj.id,
+                    user=evid.get("user", ""),
+                    text=evid.get("text", ""),
+                    timestamp=evid.get("timestamp", ""),
+                    source_file=file_id
+                )
+                db.session.add(evidence_obj)
         
-        # Save evidence (new or updated)
-        evidence_list = decision.get("evidence", [])
-        for evid in evidence_list:
-            evidence_obj = DecisionEvidence(
-                decision_id=decision_obj.id,
-                user=evid.get("user", ""),
-                text=evid.get("text", ""),
-                timestamp=evid.get("timestamp", ""),
-                source_file=file_id
-            )
-            db.session.add(evidence_obj)
+        # For existing decisions that were updated, save evidence
+        if existing_decision and should_update_decision:
+            evidence_list = decision.get("evidence", [])
+            for evid in evidence_list:
+                evidence_obj = DecisionEvidence(
+                    decision_id=decision_obj.id,
+                    user=evid.get("user", ""),
+                    text=evid.get("text", ""),
+                    timestamp=evid.get("timestamp", ""),
+                    source_file=file_id
+                )
+                db.session.add(evidence_obj)
         
         db.session.commit()
         
