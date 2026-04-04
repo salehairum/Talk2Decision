@@ -372,35 +372,33 @@ def query_file():
         # Check if this decision already exists
         # Match by: QUERY ALONE (across all files/days)
         # Normalize query for comparison (lowercase, strip whitespace)
-        # This allows the same topic asked on different days/files to be tracked
-        # as ONE decision with history across all exports
-        from sqlalchemy import select, func
+        from sqlalchemy import select, func, text
         
         # Normalize the current query for consistent matching
         normalized_query = query.strip().lower()
-        _log(f"[QUERY] normalized_query={normalized_query!r}")
+        _log(f"[QUERY] Looking for existing decision matching: {normalized_query!r}")
         
-        # Search for existing decision with normalized query comparison
-        # IMPORTANT: We DON'T filter by file_id - same question on different days updates same decision
-        # Use a fresh database session to ensure we see all committed decisions
+        # Try to find existing decision using raw SQL with fresh connection
         existing_decision = None
         try:
-            from sqlalchemy.orm import Session
-            engine = db.engine
-            with Session(engine) as lookup_session:
-                existing_query_result = select(Decision).where(
-                    func.lower(func.trim(Decision.query)) == normalized_query
-                )
-                found = lookup_session.execute(existing_query_result).scalars().first()
+            # Get a fresh connection from the pool
+            with db.engine.connect() as conn:
+                # Use raw SQL for guaranteed fresh view of the database
+                result = conn.execute(
+                    text("SELECT id FROM decisions WHERE LOWER(TRIM(query)) = LOWER(:query) LIMIT 1"),
+                    {"query": normalized_query}
+                ).scalar()
                 
-                if found:
-                    # Re-fetch in the main session
-                    existing_id = found.id
-                    _log(f"[QUERY] Found existing decision ID={existing_id}")
+                if result:
+                    existing_id = result
+                    _log(f"[QUERY] Found existing decision ID={existing_id} in database")
+                    # Now load it in the main session
                     existing_decision = db.session.get(Decision, existing_id)
-                    _log(f"[QUERY] Re-fetched in main session: {existing_decision is not None}")
+                    _log(f"[QUERY] Loaded in session: {existing_decision is not None}")
+                else:
+                    _log(f"[QUERY] No existing decision found for: {normalized_query!r}")
         except Exception as e:
-            _log(f"[QUERY] ERROR during lookup: {e}")
+            _log(f"[QUERY] Error looking up existing decision: {e}")
             import traceback
             traceback.print_exc()
         
