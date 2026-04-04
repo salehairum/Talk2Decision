@@ -13,13 +13,22 @@ Minimalistic web app to extract decisions from Slack chat exports using AI.
 
 ### Features
 
-- File upload and storage in `backend/context-extraction/data/`
-- Real-time processing progress tracking
-- Message embedding and indexing (SentenceTransformers + Chroma)
-- Hybrid keyword + semantic search over messages
-- Multi-provider LLM support (OpenAI, Groq, Gemini)
-- Strict JSON decision extraction with evidence
-- Hallucination prevention via exact-match evidence validation
+- **File Management**: Upload and storage in `backend/context-extraction/data/`
+- **Real-time Processing**: Progress tracking from upload → indexing → ready
+- **Semantic Search**: Message embedding and indexing (SentenceTransformers + Chroma)
+- **Hybrid Search**: Keyword + semantic search over messages
+- **Multi-Provider LLM**: OpenAI, Groq, Gemini support
+- **Decision Extraction**: Strict JSON extraction with evidence and action items
+- **Hallucination Prevention**: Exact-match evidence validation
+
+#### Cross-File Decision Deduplication ✨
+
+- **Same Topic Tracking**: Same query across multiple files/days → single decision
+- **Confidence-Aware Updates**: High-confidence decisions protected from low-confidence overwrites
+- **Source File Tracking**: All contributing files tracked in `source_files` array
+- **Multiple Topics**: Different queries tracked independently simultaneously
+- **Decision History**: Complete audit trail of all updates with timestamps
+- **Smart Merging**: Evidence and action items only updated when quality improves
 
 ## Project Structure
 
@@ -213,3 +222,168 @@ The frontend will:
 **Processing hangs:**
 - Check the terminal running Flask for error messages
 - Large files with many messages may take time during indexing
+
+## Cross-File Decision Deduplication
+
+The system intelligently tracks decisions across multiple Slack exports, preventing duplicate decisions for the same topic when files are from different days.
+
+### How It Works
+
+#### Query Matching
+- Queries are normalized (lowercase, trimmed) to match naturally
+- Same topic across different files → same decision is updated
+- Different topics → separate decisions tracked independently
+
+#### Confidence Hierarchy
+```
+High (confidence rank 3) > Medium (rank 2) > Low (rank 1)
+```
+
+A new extraction will **only update** an existing decision if:
+```
+new_confidence >= existing_confidence
+```
+
+This prevents low-quality extractions from overwriting high-quality decisions.
+
+#### Source File Tracking
+All files that contributed to a decision are logged:
+```json
+{
+  "decision_id": 1,
+  "query": "What is the decision?",
+  "decision": "Go with the blue theme",
+  "confidence": "High",
+  "source_files": ["2026-03-23.json", "2026-03-26.json", "2026-04-03.json"],
+  "status": "In-Progress"
+}
+```
+
+### Behavior Examples
+
+**Scenario 1: Same Topic, Different Days**
+```
+Day 1: Upload 2026-03-23.json
+       Query: "What is the decision?"
+       Result: HIGH confidence → Decision #1 created
+
+Day 2: Upload 2026-03-26.json
+       Same query, MEDIUM confidence
+       Result: Decision #1 updated (Medium ≥ baseline)
+               source_files: ["2026-03-23", "2026-03-26"]
+
+Day 3: Upload 2026-04-03.json
+       Same query, LOW confidence
+       Result: Decision #1 NOT updated (Low < High)
+               source_files: ["2026-03-23", "2026-03-26", "2026-04-03"]
+               Status moved to "In-Progress" (re-exported)
+```
+
+**Scenario 2: Multiple Topics**
+```
+Query 1: "What is the decision?"        → Decision #1 (tracked)
+Query 2: "What are the action items?"   → Decision #2 (separate)
+Query 3: "What were the main topics?"   → Decision #3 (separate)
+```
+
+Each topic is tracked independently.
+
+### Decision History
+
+Every update to a decision is logged with timestamps:
+```
+Decision #1 Update History:
+├─ SOURCE_FILE: "2026-03-23" → "2026-03-26"
+│  (@ 2026-04-04 10:38:31)
+├─ DECISION: "light theme with accents" → "Go with blue theme"
+│  (@ 2026-04-04 10:38:31)
+└─ CONFIDENCE: "Medium" → "High"
+   (@ 2026-04-04 10:39:15)
+```
+
+### Evidence and Action Items
+
+Evidence and action items are only updated when confidence improves:
+- **High → Medium/Low**: Keep existing (don't downgrade quality)
+- **Medium → High**: Update with better information
+- **Low → Any**: Update (any improvement welcomed)
+- **Always**: Track source file, move status to "In-Progress"
+
+### API: Decision Query Endpoint
+
+```bash
+curl -X POST http://127.0.0.1:5000/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_id": "2026-03-23",
+    "query": "What is the decision?",
+    "top_k": 8
+  }'
+```
+
+Response:
+```json
+{
+  "decision_id": 1,
+  "action": "created",
+  "decision": {
+    "decision": "Go with the blue theme",
+    "confidence": "High",
+    "evidence": [...],
+    "action_items": [...]
+  }
+}
+```
+
+- `"action": "created"` – New decision was created
+- `"action": "updated"` – Existing decision was updated
+
+## Technical Details
+
+### Database Schema
+
+**decisions** table includes:
+- `id`: Unique decision identifier
+- `query`: Normalized query text (matched across files)
+- `extracted_decision`: The decision text
+- `confidence`: High/Medium/Low
+- `source_files`: JSON array of contributing file IDs
+- `status`: Open → In-Progress → Resolved
+- `created_at`, `updated_at`: Timestamps
+- Relationships to evidence, action items, and history
+
+**decision_history** table tracks:
+- `field_name`: Which field changed (decision, confidence, source_file, etc.)
+- `old_value` → `new_value`: What changed
+- `changed_at`: When the change happened
+
+### Deduplication Logic
+
+```python
+# 1. Normalize query
+normalized_query = query.strip().lower()
+
+# 2. Lookup existing decision
+result = db.execute(
+  "SELECT id FROM decisions WHERE LOWER(TRIM(query)) = LOWER(?)",
+  (normalized_query,)
+)
+
+# 3. Compare confidence
+if existing:
+  if new_confidence >= existing_confidence:
+    update_decision()  # Update text, evidence, items
+  else:
+    keep_existing()    # Preserve high-quality decision
+
+# 4. Always track source file
+add_to_source_files(file_id)
+move_to_in_progress()
+```
+
+### Fresh Database Connections
+
+The deduplication lookup uses fresh database connections to ensure:
+- No cached/stale data from ORM session
+- Always sees latest committed state
+- Guarantees consistent cross-file matching
