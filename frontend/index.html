@@ -65,6 +65,7 @@
         let processingIntervalId = null;
         let currentTab = "query";
         let selectedDecision = null;
+        let llmOptions = null;
 
         // Handle file selection
         document.getElementById("file-input").addEventListener("change", async (e) => {
@@ -199,6 +200,12 @@
             content.innerHTML = `
                 <div class="query-section">
                     <h2>🔍 Ask a question about this chat</h2>
+                    <div class="query-input-group query-config-row">
+                        <label for="llm-provider" class="query-config-label">Provider</label>
+                        <select id="llm-provider" onchange="onProviderChange()"></select>
+                        <label for="llm-model" class="query-config-label">Model</label>
+                        <input type="text" id="llm-model" placeholder="Model name" />
+                    </div>
                     <div class="query-input-group">
                         <input 
                             type="text" 
@@ -211,10 +218,59 @@
                 </div>
                 <div id="results-area"></div>
             `;
+
+            initializeLLMSelectors();
+        }
+
+        async function loadLLMOptions() {
+            try {
+                const res = await fetch(`${API_BASE}/llm/options`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Failed to load LLM options");
+                llmOptions = data;
+            } catch (err) {
+                console.error("LLM options error:", err);
+                llmOptions = {
+                    active_provider: "groq",
+                    active_model: "llama-3.1-8b-instant",
+                    providers: [
+                        { name: "groq", default_model: "llama-3.1-8b-instant" },
+                        { name: "gemini", default_model: "gemini-2.5-flash" },
+                    ],
+                };
+            }
+        }
+
+        function initializeLLMSelectors() {
+            const providerSelect = document.getElementById("llm-provider");
+            const modelInput = document.getElementById("llm-model");
+            if (!providerSelect || !modelInput || !llmOptions) return;
+
+            providerSelect.innerHTML = llmOptions.providers
+                .map((p) => `<option value="${p.name}">${p.name}</option>`)
+                .join("");
+
+            providerSelect.value = llmOptions.active_provider || "groq";
+            const activeProvider = llmOptions.providers.find((p) => p.name === providerSelect.value);
+            modelInput.value = llmOptions.active_model || (activeProvider ? activeProvider.default_model : "");
+        }
+
+        function onProviderChange() {
+            const providerSelect = document.getElementById("llm-provider");
+            const modelInput = document.getElementById("llm-model");
+            if (!providerSelect || !modelInput || !llmOptions) return;
+
+            const selectedProvider = providerSelect.value;
+            const selected = llmOptions.providers.find((p) => p.name === selectedProvider);
+            if (selected && selected.default_model) {
+                modelInput.value = selected.default_model;
+            }
         }
 
         async function runQuery() {
             const query = document.getElementById("query-input").value.trim();
+            const llmProvider = (document.getElementById("llm-provider")?.value || "").trim();
+            const llmModel = (document.getElementById("llm-model")?.value || "").trim();
             if (!query || !currentFileId) return;
 
             const queryBtn = document.querySelector(".query-btn");
@@ -229,6 +285,8 @@
                         file_id: currentFileId,
                         query: query,
                         top_k: 8,
+                        llm_provider: llmProvider,
+                        llm_model: llmModel,
                     }),
                 });
 
@@ -257,10 +315,10 @@
                 <div class="result">
                     <h3>Decision Extracted (ID: ${decisionId})</h3>
                     <div class="decision-box">
-                        <div class="decision-label">Decision</div>
-                        <div class="decision-text">${decision.decision}</div>
-                        <span class="confidence-badge ${confidenceClass}">
-                            ${decision.confidence} Confidence
+                        <div class="decision-label">Final Decision</div>
+                        <div class="decision-text">${escapeHtml(finalDecision)}</div>
+                        <span class="confidence-badge">
+                            Retrieval Score: ${escapeHtml(confidenceDisplay)}
                         </span>
                     </div>
 
@@ -300,17 +358,28 @@
                                     .map(
                                         (e) => `
                                     <div class="evidence-item">
-                                        <div class="evidence-author">@${e.user}</div>
-                                        <div class="evidence-text">"${e.text}"</div>
-                                        <div class="evidence-time">${e.timestamp}</div>
+                                        <div class="evidence-author">@${escapeHtml(e.user)}</div>
+                                        <div class="evidence-text">"${escapeHtml(e.text)}"</div>
+                                        <div class="evidence-time">${escapeHtml(e.timestamp)}</div>
                                     </div>
                                 `
                                     )
                                     .join("")}
                             </div>
+                        `
+                                : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
+                        }
+                    </div>
+
+                    ${
+                        showRawResponse
+                            ? `
+                        <div style="margin-top: 14px; padding: 12px; background: #f9f9fb; border: 1px solid #ececf2; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 6px;">Model response</div>
+                            <div style="font-size: 13px; line-height: 1.5; white-space: pre-wrap; color: #2e2e35;">${escapeHtml(parsedNarrative.raw)}</div>
                         </div>
                     `
-                            : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
+                            : ""
                     }
 
                     <button class="view-details-btn" onclick="viewDecisionDetails(${decisionId})" style="margin-top: 15px;">
@@ -629,8 +698,10 @@
             resultsArea.innerHTML = `<div class="error">❌ ${message}</div>`;
         }
 
-        // Load initial file list
-        loadFiles();
+        // Load initial file list and available models
+        loadLLMOptions().then(() => {
+            loadFiles();
+        });
     </script>
 </body>
 </html>
