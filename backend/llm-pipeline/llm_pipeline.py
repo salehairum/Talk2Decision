@@ -156,7 +156,8 @@ def format_messages(messages: List[Dict[str, Any]]) -> str:
 	return "\\n\\n".join(lines)
 
 
-def build_prompt(messages_block: str, query: str) -> List[Any]:
+def build_prompt_template() -> Any:
+	"""Build a reusable LangChain prompt template."""
 	system_prompt = (
 		"You are an AI system that analyzes team conversations to extract decisions and supporting evidence."
 	)
@@ -188,7 +189,7 @@ def build_prompt(messages_block: str, query: str) -> List[Any]:
 		"Explanation:\n"
 		"Briefly explain how the conversation led to this decision.\"\n\n"
 		"Then provide structured JSON:\n\n"
-		"{\n"
+		"{{\n"
 		'  \"decision\": \"string\",\n'
 		'  \"decision_made_by\": \"string\",\n'
 		'  \"timestamp\": \"string\",\n'
@@ -202,16 +203,16 @@ def build_prompt(messages_block: str, query: str) -> List[Any]:
 		"    }\n"
 		"  ],\n"
 		'  \"evidence\": [\n'
-		"    {\n"
+		"    {{\n"
 		'      \"user\": \"string\",\n'
 		'      \"text\": \"exact message text\",\n'
 		'      \"timestamp\": \"string\"\n'
-		"    }\n"
+		"    }}\n"
 		"  ]\n"
-		"}\n\n"
+		"}}\n\n"
 		"If no decision is found, return:\n\n"
 		'\"Final Decision: No clear decision found.\"\n\n'
-		"{\n"
+		"{{\n"
 		'  \"decision\": \"No clear decision found\",\n'
 		'  \"decision_made_by\": null,\n'
 		'  \"timestamp\": null,\n'
@@ -219,15 +220,19 @@ def build_prompt(messages_block: str, query: str) -> List[Any]:
 		'  \"confidence\": \"Low\",\n'
 		'  \"action_items\": [],\n'
 		'  \"evidence\": []\n'
-		"}\n\n"
+		"}}\n\n"
 		"Now analyze the following messages:\n\n"
-		f"{messages_block}\n\n"
+		"{messages_block}\n\n"
 		"User Query:\n"
-		f"{query}"
+		"{query}"
 	)
 
-	# Tuple-style messages keep the implementation simple and LangChain-compatible.
-	return [("system", system_prompt), ("human", user_prompt)]
+	prompts_module = import_module("langchain_core.prompts")
+	chat_prompt_template = getattr(prompts_module, "ChatPromptTemplate")
+
+	return chat_prompt_template.from_messages(
+		[("system", system_prompt), ("human", user_prompt)]
+	)
 
 
 def get_chat_llm(config: LLMConfig) -> Any:
@@ -306,6 +311,14 @@ def safe_json_parse(raw: str) -> Dict[str, Any]:
 	raise ValueError("LLM response is not valid JSON.")
 
 
+def _try_parse_json(raw: str) -> Dict[str, Any] | None:
+	"""Best-effort JSON parsing; returns None when content is not valid JSON."""
+	try:
+		return safe_json_parse(raw)
+	except Exception:
+		return None
+
+
 def normalize_output(data: Dict[str, Any], messages: List[Dict[str, Any]]) -> Dict[str, Any]:
 	"""Enforce schema and remove evidence that does not exactly match input messages."""
 	decision = str(data.get("decision", "")).strip()
@@ -363,11 +376,64 @@ def normalize_output(data: Dict[str, Any], messages: List[Dict[str, Any]]) -> Di
 	}
 
 
+def coerce_llm_output(raw_content: str, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+	"""Return structured output when possible; otherwise preserve plain-text model response."""
+	raw_text = str(raw_content or "").strip()
+	parsed = _try_parse_json(raw_text)
+
+	if isinstance(parsed, dict):
+		normalized = normalize_output(parsed, messages)
+		normalized["raw_response"] = raw_text
+		return normalized
+
+	if not raw_text:
+		result = DEFAULT_NO_DECISION.copy()
+		result["raw_response"] = ""
+		return result
+
+	# Flexible fallback: keep natural language response even when JSON is absent.
+	return {
+		"decision": raw_text,
+		"confidence": "Low",
+		"evidence": [],
+		"raw_response": raw_text,
+	}
+
+
+def build_decision_chain(config: LLMConfig) -> Any:
+	"""Create LCEL pipeline: input -> generator -> output."""
+	runnables_module = import_module("langchain_core.runnables")
+	output_parsers_module = import_module("langchain_core.output_parsers")
+	runnable_lambda = getattr(runnables_module, "RunnableLambda")
+	runnable_passthrough = getattr(runnables_module, "RunnablePassthrough")
+	str_output_parser = getattr(output_parsers_module, "StrOutputParser")
+
+	llm = get_chat_llm(config)
+	prompt = build_prompt_template()
+	generator = prompt | llm | str_output_parser()
+
+	# Keep the original messages through the chain for strict evidence validation.
+	return (
+		runnable_passthrough.assign(messages_block=lambda x: format_messages(x.get("messages", [])))
+		| {
+			"messages": runnable_lambda(lambda x: x.get("messages", [])),
+			"raw_content": generator,
+		}
+		| runnable_lambda(
+			lambda x: coerce_llm_output(
+				str(x.get("raw_content", "")),
+				x.get("messages", []),
+			)
+		)
+	)
+
+
 def format_decision_response(result: Dict[str, Any]) -> str:
 	"""Render a clean, user-facing decision summary with evidence."""
 	decision = str(result.get("decision", "No clear decision found")).strip()
 	confidence = str(result.get("confidence", "Low")).strip()
 	evidence = result.get("evidence", [])
+	raw_response = str(result.get("raw_response", "")).strip()
 
 	lines: List[str] = [
 		"Decision Summary",
@@ -379,6 +445,10 @@ def format_decision_response(result: Dict[str, Any]) -> str:
 
 	if not isinstance(evidence, list) or not evidence:
 		lines.append("- No supporting evidence found.")
+		if raw_response and raw_response != decision:
+			lines.append("")
+			lines.append("Model Response:")
+			lines.append(raw_response)
 		return "\n".join(lines)
 
 	for idx, item in enumerate(evidence, start=1):
@@ -395,6 +465,11 @@ def format_decision_response(result: Dict[str, Any]) -> str:
 		lines.append(meta)
 		lines.append(f"   {text}")
 
+	if raw_response and raw_response != decision:
+		lines.append("")
+		lines.append("Model Response:")
+		lines.append(raw_response)
+
 	return "\n".join(lines)
 
 
@@ -408,21 +483,16 @@ def extract_decision(
 		raise ValueError("messages must be a list of dict objects.")
 
 	try:
-		messages_block = format_messages(messages)
-		prompt_messages = build_prompt(messages_block, query)
+		chain = build_decision_chain(config)
+		payload = {"messages": messages, "query": query}
 		print("=============================")
-		print("Prompt Messages: ", prompt_messages)
-
-		llm = get_chat_llm(config)
-		response = llm.invoke(prompt_messages)
+		print("LCEL Chain Input: ", payload)
+		result = chain.invoke(payload)
 		print("=============================")
-		print("LLM Raw Response: ", response)
-		content = response.content if isinstance(response.content, str) else json.dumps(response.content)
-		print("=============================")
-		print("LLM Content to Parse: ", content)
-
-		parsed = safe_json_parse(content)
-		return normalize_output(parsed, messages)
+		print("LCEL Chain Output: ", result)
+		if isinstance(result, dict):
+			return result
+		return DEFAULT_NO_DECISION.copy()
 	except Exception as e:
 		# Print error details before fallback so user can see what failed.
 		print("=============================")
