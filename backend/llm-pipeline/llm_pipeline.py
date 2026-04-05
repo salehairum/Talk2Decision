@@ -12,6 +12,7 @@ DEFAULT_NO_DECISION = {
 	"decision": "No clear decision found",
 	"confidence": "Low",
 	"evidence": [],
+	"action_items": [],
 }
 
 
@@ -169,17 +170,22 @@ def build_prompt_template() -> Any:
 		"1. Identify the final decision related to the query\n"
 		"2. Find the exact message where the decision is clearly stated\n"
 		"3. Identify who made the decision and when\n"
-		"4. Provide supporting evidence messages\n\n"
+		"4. Extract any action items (TODOs, tasks, deadlines) mentioned related to this decision\n"
+		"5. Provide supporting evidence messages\n\n"
 		"STRICT RULES:\n"
 		"- ONLY use the provided messages\n"
 		"- DO NOT hallucinate or infer missing data\n"
 		"- The quoted decision message MUST match the original text exactly\n"
-		"- If no clear decision is found, say so explicitly\n\n"
+		"- If no clear decision is found, say so explicitly\n"
+		"- Action items should be based on what is mentioned in the messages\n\n"
 		"OUTPUT FORMAT:\n\n"
 		"First, provide a natural language answer:\n\n"
 		'\"Final Decision: <decision in plain English>.\n\n'
 		"This decision was made by <user> at <timestamp>, as stated in the message:\n"
 		'\"<exact message text>\"\n\n'
+		"Action Items:\n"
+		"- <task 1> (assigned to: <person>, due: <date if mentioned>)\n"
+		"- <task 2> ...\n\n"
 		"Explanation:\n"
 		"Briefly explain how the conversation led to this decision.\"\n\n"
 		"Then provide structured JSON:\n\n"
@@ -189,6 +195,13 @@ def build_prompt_template() -> Any:
 		'  \"timestamp\": \"string\",\n'
 		'  \"decision_message\": \"exact message text\",\n'
 		'  \"confidence\": \"High/Medium/Low\",\n'
+		'  \"action_items\": [\n'
+		"    {\n"
+		'      \"task\": \"string\",\n'
+		'      \"owner\": \"string or null\",\n'
+		'      \"due_date\": \"string or null\"\n'
+		"    }\n"
+		"  ],\n"
 		'  \"evidence\": [\n'
 		"    {{\n"
 		'      \"user\": \"string\",\n'
@@ -205,6 +218,7 @@ def build_prompt_template() -> Any:
 		'  \"timestamp\": null,\n'
 		'  \"decision_message\": null,\n'
 		'  \"confidence\": \"Low\",\n'
+		'  \"action_items\": [],\n'
 		'  \"evidence\": []\n'
 		"}}\n\n"
 		"Now analyze the following messages:\n\n"
@@ -310,6 +324,7 @@ def normalize_output(data: Dict[str, Any], messages: List[Dict[str, Any]]) -> Di
 	decision = str(data.get("decision", "")).strip()
 	confidence = str(data.get("confidence", "Low")).strip()
 	evidence = data.get("evidence", [])
+	action_items = data.get("action_items", [])
 
 	if confidence not in {"High", "Medium", "Low"}:
 		confidence = "Low"
@@ -332,6 +347,17 @@ def normalize_output(data: Dict[str, Any], messages: List[Dict[str, Any]]) -> Di
 		if (user, text, timestamp) in allowed:
 			cleaned_evidence.append({"user": user, "text": text, "timestamp": timestamp})
 
+	# Validate action items format
+	validated_actions = []
+	if isinstance(action_items, list):
+		for item in action_items:
+			if isinstance(item, dict):
+				validated_actions.append({
+					"task": str(item.get("task", "")).strip(),
+					"owner": str(item.get("owner", "")).strip() or None,
+					"due_date": str(item.get("due_date", "")).strip() or None,
+			})
+
 	if not decision:
 		return DEFAULT_NO_DECISION.copy()
 
@@ -346,6 +372,7 @@ def normalize_output(data: Dict[str, Any], messages: List[Dict[str, Any]]) -> Di
 		"decision": decision,
 		"confidence": confidence,
 		"evidence": cleaned_evidence,
+		"action_items": validated_actions,
 	}
 
 

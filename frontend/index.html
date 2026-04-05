@@ -43,6 +43,12 @@
                 </div>
             </div>
 
+            <!-- Tab navigation -->
+            <div class="tab-nav" id="tab-nav" style="display: none;">
+                <button class="tab-btn active" onclick="switchTab('query')">🔍 Extract Decision</button>
+                <button class="tab-btn" onclick="switchTab('dashboard')">📊 Decisions Dashboard</button>
+            </div>
+
             <!-- Query and results -->
             <div class="content" id="content-area">
                 <div class="empty-state">
@@ -57,6 +63,8 @@
         const API_BASE = "http://127.0.0.1:5000";
         let currentFileId = null;
         let processingIntervalId = null;
+        let currentTab = "query";
+        let selectedDecision = null;
         let llmOptions = null;
 
         // Handle file selection
@@ -126,7 +134,6 @@
                     } else {
                         console.error(`Status poll failed (${res.status}):`, data);
                         if (res.status === 404) {
-                            // Backend may still be creating state right after upload.
                             return;
                         }
                         clearInterval(processingIntervalId);
@@ -164,12 +171,31 @@
         function selectFile(fileId) {
             currentFileId = fileId;
             loadFiles();
+            currentTab = "query";
             showQueryInterface();
         }
 
         function showQueryInterface() {
-            if (!currentFileId) return;
+            document.getElementById("tab-nav").style.display = "flex";
+            currentTab = "query";
+            switchTab("query");
+        }
 
+        function switchTab(tab) {
+            currentTab = tab;
+            const tabBtns = document.querySelectorAll(".tab-btn");
+            tabBtns.forEach(btn => btn.classList.remove("active"));
+            event.target.classList.add("active");
+
+            if (tab === "query") {
+                showQueryView();
+            } else if (tab === "dashboard") {
+                showDashboard();
+            }
+        }
+
+        function showQueryView() {
+            if (!currentFileId) return;
             const content = document.getElementById("content-area");
             content.innerHTML = `
                 <div class="query-section">
@@ -267,7 +293,7 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    displayResult(query, data.decision, data.chunks_retrieved, data.llm);
+                    displayResult(query, data.decision, data.decision_id, data.chunks_retrieved);
                 } else {
                     showError(`Query failed: ${data.error}`);
                 }
@@ -279,97 +305,15 @@
             }
         }
 
-        function escapeHtml(value) {
-            return String(value ?? "")
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/\"/g, "&quot;")
-                .replace(/'/g, "&#39;");
-        }
-
-        function parseNarrativeFromRawResponse(rawResponse, fallbackDecision) {
-            const raw = String(rawResponse || "").trim();
-            let finalDecision = String(fallbackDecision || "").trim();
-            let explanation = "";
-            let decisionMadeBy = "";
-            let decisionTimestamp = "";
-            let decisionMessage = "";
-
-            if (!raw) {
-                return {
-                    finalDecision,
-                    explanation,
-                    decisionMadeBy,
-                    decisionTimestamp,
-                    decisionMessage,
-                    hasNarrative: false,
-                    raw,
-                };
-            }
-
-            const cleaned = raw
-                .replace(/^```json\s*/i, "")
-                .replace(/^```\s*/i, "")
-                .replace(/\s*```$/i, "")
-                .trim();
-
-            const finalMatch = cleaned.match(
-                /Final Decision:\s*([\s\S]*?)(?:\n\s*This decision was made by|\n\s*Explanation:|\n\s*\{|$)/i
-            );
-            if (finalMatch && finalMatch[1]) {
-                finalDecision = finalMatch[1].trim().replace(/^\"|\"$/g, "");
-            }
-
-            const attributionMatch = cleaned.match(
-                /This decision was made by\s+([\s\S]*?)\s+at\s+([\s\S]*?),\s*as stated in the message:/i
-            );
-            if (attributionMatch) {
-                decisionMadeBy = String(attributionMatch[1] || "").trim().replace(/^\"|\"$/g, "");
-                decisionTimestamp = String(attributionMatch[2] || "").trim().replace(/^\"|\"$/g, "");
-            }
-
-            const messageMatch = cleaned.match(/as stated in the message:\s*\n\s*"([\s\S]*?)"/i);
-            if (messageMatch && messageMatch[1]) {
-                decisionMessage = messageMatch[1].trim();
-            }
-
-            const explanationMatch = cleaned.match(/Explanation:\s*([\s\S]*?)(?:\n\s*\{|$)/i);
-            if (explanationMatch && explanationMatch[1]) {
-                explanation = explanationMatch[1].trim().replace(/^\"|\"$/g, "");
-            }
-
-            return {
-                finalDecision,
-                explanation,
-                decisionMadeBy,
-                decisionTimestamp,
-                decisionMessage,
-                hasNarrative: Boolean(finalMatch || explanationMatch || attributionMatch || messageMatch),
-                raw,
-            };
-        }
-
-        function displayResult(query, decision, chunksCount, llmInfo) {
+        function displayResult(query, decision, decisionId, chunksCount) {
             const resultsArea = document.getElementById("results-area");
             const hasEvidence = decision.evidence && decision.evidence.length > 0;
-            const confidenceScoreRaw = Number(
-                decision.confidence_score ?? decision.confidence ?? 0
-            );
-            const confidenceScore = Number.isFinite(confidenceScoreRaw) ? confidenceScoreRaw : 0;
-            const confidenceDisplay = confidenceScore.toFixed(6);
-            const parsedNarrative = parseNarrativeFromRawResponse(decision.raw_response, decision.decision);
-            const finalDecision = parsedNarrative.finalDecision || String(decision.decision || "").trim();
-            const explanation = parsedNarrative.explanation;
-            const decisionMadeBy = parsedNarrative.decisionMadeBy;
-            const decisionTimestamp = parsedNarrative.decisionTimestamp;
-            const decisionMessage = parsedNarrative.decisionMessage;
-            const hasDecisionDetails = Boolean(decisionMadeBy || decisionTimestamp || decisionMessage || explanation);
-            const showRawResponse = parsedNarrative.raw.length > 0 && !parsedNarrative.hasNarrative;
+            const confidenceClass = `confidence-${decision.confidence.toLowerCase()}`;
+            const actionItems = decision.action_items || [];
 
             resultsArea.innerHTML = `
                 <div class="result">
-                    <h3>Decision Extracted</h3>
+                    <h3>Decision Extracted (ID: ${decisionId})</h3>
                     <div class="decision-box">
                         <div class="decision-label">Final Decision</div>
                         <div class="decision-text">${escapeHtml(finalDecision)}</div>
@@ -379,30 +323,35 @@
                     </div>
 
                     ${
-                        hasDecisionDetails
+                        actionItems.length > 0
                             ? `
-                        <div class="decision-details-box">
-                            <div class="decision-label">Decision Details</div>
-                            <div class="decision-details-meta">
-                                This decision was made by <strong>${escapeHtml(decisionMadeBy || "Unknown")}</strong>
-                                at <strong>${escapeHtml(decisionTimestamp || "Unknown time")}</strong>
+                        <div style="margin-top: 15px;">
+                            <div class="decision-label">Action Items</div>
+                            <div class="action-items-list">
+                                ${actionItems
+                                    .map(
+                                        (ai) => `
+                                    <div class="action-item">
+                                        <input type="checkbox" disabled />
+                                        <span class="action-text">${ai.task}</span>
+                                        ${ai.owner ? `<span class="action-owner">👤 ${ai.owner}</span>` : ""}
+                                        ${ai.due_date ? `<span class="action-due">📅 ${ai.due_date}</span>` : ""}
+                                    </div>
+                                `
+                                    )
+                                    .join("")}
                             </div>
-                            <div class="decision-details-quote-label">As stated in the message</div>
-                            <div class="decision-details-quote">"${escapeHtml(decisionMessage || "No explicit decision message found.")}"</div>
-                            <div class="decision-details-explanation-label">Explanation</div>
-                            <div class="decision-details-explanation">${escapeHtml(explanation || "No explanation was returned by the model.")}</div>
                         </div>
                     `
                             : ""
                     }
 
-                    <div class="evidence-box">
-                        <div class="decision-label">Evidence</div>
-                        ${
-                            hasEvidence
-                                ? `
-                            <p class="evidence-summary">
-                                Found in <strong>${escapeHtml(chunksCount)}</strong> relevant messages:
+                    ${
+                        hasEvidence
+                            ? `
+                        <div style="margin-top: 15px;">
+                            <p style="font-size: 13px; margin-bottom: 10px; color: #666;">
+                                Found in <strong>${chunksCount}</strong> relevant messages:
                             </p>
                             <div class="evidence">
                                 ${decision.evidence
@@ -432,8 +381,316 @@
                     `
                             : ""
                     }
+
+                    <button class="view-details-btn" onclick="viewDecisionDetails(${decisionId})" style="margin-top: 15px;">
+                        📋 View Details & Track
+                    </button>
                 </div>
             `;
+        }
+
+        async function showDashboard() {
+            const content = document.getElementById("content-area");
+            content.innerHTML = '<div class="loading"><span class="spinner"></span> Loading decisions...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/decisions`);
+                const data = await res.json();
+
+                const decisions = data.decisions || [];
+                if (decisions.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <p>No decisions tracked yet. Extract decisions from chat first!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Group decisions by status
+                const byStatus = { Open: [], "In-Progress": [], Closed: [] };
+                decisions.forEach(d => {
+                    if (!byStatus[d.status]) byStatus[d.status] = [];
+                    byStatus[d.status].push(d);
+                });
+
+                content.innerHTML = `
+                    <div class="dashboard">
+                        <h2 style="margin-bottom: 20px;">📊 Decision Dashboard</h2>
+                        <div class="dashboard-grid">
+                            ${Object.entries(byStatus)
+                                .map(
+                                    ([status, list]) => `
+                                <div class="dashboard-column">
+                                    <div class="column-header">${status} (${list.length})</div>
+                                    <div class="decisions-list">
+                                        ${list
+                                            .map(
+                                                (d) => `
+                                            <div class="decision-card" onclick="viewDecisionDetails(${d.id})">
+                                                <div class="card-header">
+                                                    <div class="card-title">${d.decision.substring(0, 50)}...</div>
+                                                    <button class="card-delete-btn" onclick="event.stopPropagation(); deleteDecision(${d.id});" title="Delete decision">🗑️</button>
+                                                </div>
+                                                <div class="card-meta">
+                                                    <span class="priority-badge priority-${d.priority.toLowerCase()}">${d.priority}</span>
+                                                    <span class="category-badge">${d.category}</span>
+                                                </div>
+                                                <div class="card-info">
+                                                    ${d.owner ? `<div>👤 ${d.owner}</div>` : ""}
+                                                    <div style="font-size: 11px; color: #999;">${d.action_items.length} actions</div>
+                                                </div>
+                                            </div>
+                                        `
+                                            )
+                                            .join("")}
+                                    </div>
+                                </div>
+                            `
+                                )
+                                .join("")}
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                showError(`Failed to load decisions: ${err.message}`);
+            }
+        }
+
+        async function viewDecisionDetails(decisionId) {
+            const content = document.getElementById("content-area");
+            content.innerHTML = '<div class="loading"><span class="spinner"></span> Loading...</div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/decisions/${decisionId}`);
+                const decision = await res.json();
+
+                if (!res.ok) {
+                    showError("Decision not found");
+                    return;
+                }
+
+                selectedDecision = decision;
+                const confidenceClass = `confidence-${decision.confidence.toLowerCase()}`;
+
+                content.innerHTML = `
+                    <button class="back-btn" onclick="showDashboard()">← Back to Dashboard</button>
+                    <div class="detail-view">
+                        <div class="detail-header">
+                            <div>
+                                <h1>${decision.decision}</h1>
+                                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                    <span class="confidence-badge ${confidenceClass}">${decision.confidence}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="detail-grid">
+                            <div class="detail-col">
+                                <h3>📋 Details</h3>
+                                <div class="detail-form">
+                                    <div class="form-group" style="background: rgba(255,255,255,0.02); padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                                        <div style="font-size: 12px; color: #999; margin-bottom: 8px;">📅 Created: ${new Date(decision.created_at).toLocaleString()}</div>
+                                        <div style="font-size: 12px; color: #999;">🔄 Updated: ${new Date(decision.updated_at).toLocaleString()}</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Status</label>
+                                        <select onchange="updateDecisionField(${decisionId}, 'status', this.value); return false;">
+                                            <option value="Open" ${decision.status === 'Open' ? 'selected' : ''}>Open</option>
+                                            <option value="In-Progress" ${decision.status === 'In-Progress' ? 'selected' : ''}>In-Progress</option>
+                                            <option value="Closed" ${decision.status === 'Closed' ? 'selected' : ''}>Closed</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Owner</label>
+                                        <input type="text" placeholder="Assign owner..." value="${decision.owner || ''}" onchange="updateDecisionField(${decisionId}, 'owner', this.value)" />
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Priority</label>
+                                        <select onchange="updateDecisionField(${decisionId}, 'priority', this.value); return false;">
+                                            <option value="Low" ${decision.priority === 'Low' ? 'selected' : ''}>Low</option>
+                                            <option value="Medium" ${decision.priority === 'Medium' ? 'selected' : ''}>Medium</option>
+                                            <option value="High" ${decision.priority === 'High' ? 'selected' : ''}>High</option>
+                                            <option value="Critical" ${decision.priority === 'Critical' ? 'selected' : ''}>Critical</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Category</label>
+                                        <input type="text" placeholder="Category..." value="${decision.category || ''}" onchange="updateDecisionField(${decisionId}, 'category', this.value)" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-col">
+                                <h3>✅ Action Items (${decision.action_items.length})</h3>
+                                ${
+                                    decision.action_items.length > 0
+                                        ? `
+                                    <div class="actions-list">
+                                        ${decision.action_items
+                                            .map(
+                                                (ai) => `
+                                            <div class="action-item-detail">
+                                                <div class="action-title">${ai.task}</div>
+                                                <div class="action-detail-info">
+                                                    ${ai.owner ? `<span>👤 ${ai.owner}</span>` : ""}
+                                                    ${ai.due_date ? `<span>📅 ${ai.due_date}</span>` : ""}
+                                                </div>
+                                            </div>
+                                        `
+                                            )
+                                            .join("")}
+                                    </div>
+                                `
+                                        : `<p style="color: #999; font-size: 13px;">No action items extracted. Add one manually?</p>`
+                                }
+                                <button class="add-action-btn" onclick="openAddActionModal(${decisionId})" style="margin-top: 10px;">+ Add Action Item</button>
+                    <button class="delete-decision-btn" onclick="deleteDecision(${decisionId})" style="margin-top: 10px;">🗑️ Delete Decision</button>
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top: 30px; margin-bottom: 15px;">📎 Evidence</h3>
+                        <div class="evidence">
+                            ${decision.evidence
+                                .map(
+                                    (e) => `
+                                <div class="evidence-item">
+                                    <div class="evidence-author">@${e.user}</div>
+                                    <div class="evidence-text">"${e.text}"</div>
+                                    <div class="evidence-time">${e.timestamp}</div>
+                                </div>
+                            `
+                                )
+                                .join("")}
+                        </div>
+
+                        <h3 style="margin-top: 30px; margin-bottom: 15px;">📜 Change History</h3>
+                        <div id="history-container">Loading history...</div>
+                    </div>
+                `;
+                
+                // Load history asynchronously
+                const historyContainer = document.getElementById("history-container");
+                const historyHtml = await loadDecisionHistory(decisionId);
+                historyContainer.innerHTML = historyHtml;
+            } catch (err) {
+                showError(`Failed to load decision: ${err.message}`);
+            }
+        }
+
+        async function loadDecisionHistory(decisionId) {
+            try {
+                const res = await fetch(`${API_BASE}/decisions/${decisionId}/history`);
+                const data = await res.json();
+                const history = data.history || [];
+
+                if (history.length === 0) {
+                    return `<p style="color: #999; font-size: 13px;">No changes yet.</p>`;
+                }
+
+                return `
+                    <div class="history-list">
+                        ${history
+                            .map(
+                                (h) => `
+                            <div class="history-item">
+                                <strong>${h.field}</strong>: ${h.old_value || "N/A"} → ${h.new_value || "N/A"}
+                                <div style="font-size: 11px; color: #999; margin-top: 3px;">${new Date(h.changed_at).toLocaleString()} by ${h.changed_by}</div>
+                            </div>
+                        `
+                            )
+                            .join("")}
+                    </div>
+                `;
+            } catch (err) {
+                return `<p style="color: #f77;">Error loading history</p>`;
+            }
+        }
+
+        async function updateDecisionField(decisionId, fieldName, value) {
+            // Don't update if value hasn't changed (unless intentional)
+            if (value === undefined || value === null) return;
+
+            try {
+                let endpoint = `${API_BASE}/decisions/${decisionId}`;
+                let body = {};
+
+                if (fieldName === "status") {
+                    endpoint = `${API_BASE}/decisions/${decisionId}/status`;
+                    body = { status: value, changed_by: "user" };
+                } else if (fieldName === "owner") {
+                    endpoint = `${API_BASE}/decisions/${decisionId}/owner`;
+                    body = { owner: value.trim() || null, changed_by: "user" };
+                } else if (fieldName === "priority" || fieldName === "category") {
+                    endpoint = `${API_BASE}/decisions/${decisionId}/metadata`;
+                    body = { [fieldName]: value.trim(), changed_by: "user" };
+                }
+
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+
+                if (res.ok) {
+                    // Refresh the detail view to show updated data and history
+                    await viewDecisionDetails(decisionId);
+                } else {
+                    const errorData = await res.json();
+                    showError(`Failed to update: ${errorData.error || 'Unknown error'}`);
+                }
+            } catch (err) {
+                showError(`Update error: ${err.message}`);
+            }
+        }
+
+        async function openAddActionModal(decisionId) {
+            const task = prompt("What is the task?");
+            if (!task) return;
+
+            const owner = prompt("Who is responsible? (optional)");
+            const dueDate = prompt("Due date? (optional)");
+
+            try {
+                const res = await fetch(`${API_BASE}/decisions/${decisionId}/actions`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        task: task,
+                        owner: owner || null,
+                        due_date: dueDate || null,
+                    }),
+                });
+
+                if (res.ok) {
+                    viewDecisionDetails(decisionId);
+                } else {
+                    showError("Failed to add action item");
+                }
+            } catch (err) {
+                showError(`Error: ${err.message}`);
+            }
+        }
+
+        async function deleteDecision(decisionId) {
+            const confirm_delete = confirm("⚠️ Are you sure you want to delete this decision? This cannot be undone.");
+            if (!confirm_delete) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/decisions/${decisionId}`, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                });
+
+                if (res.ok) {
+                    showDashboard();
+                } else {
+                    showError("Failed to delete decision");
+                }
+            } catch (err) {
+                showError(`Delete error: ${err.message}`);
+            }
         }
 
         function showError(message) {
