@@ -196,11 +196,11 @@ def build_prompt_template() -> Any:
 		'  \"decision_message\": \"exact message text\",\n'
 		'  \"confidence\": \"High/Medium/Low\",\n'
 		'  \"action_items\": [\n'
-		"    {\n"
+		"    {{\n"
 		'      \"task\": \"string\",\n'
 		'      \"owner\": \"string or null\",\n'
 		'      \"due_date\": \"string or null\"\n'
-		"    }\n"
+		"    }}\n"
 		"  ],\n"
 		'  \"evidence\": [\n'
 		"    {{\n"
