@@ -308,13 +308,11 @@
 
         function displayResult(query, decision, decisionId, chunksCount) {
             const resultsArea = document.getElementById("results-area");
-            const hasEvidence = decision.evidence && decision.evidence.length > 0;
             const normalizedConfidence = normalizeBadgeValue(decision.confidence, "low");
             const confidenceClass = `confidence-${normalizedConfidence}`;
             const actionItems = decision.action_items || [];
             const finalDecision = String(decision.decision || "No clear decision found");
             const confidenceDisplay = String(decision.confidence || "Low");
-            const hasDecisionDetails = hasEvidence;
             const parsedNarrative = { raw: String(decision.raw_response || "") };
             const showRawResponse = false;
 
@@ -352,29 +350,6 @@
                     : ""
                 }
 
-                    ${hasDecisionDetails
-                    ? `
-                        <div style="margin-top: 15px;">
-                            <p style="font-size: 13px; margin-bottom: 10px; color: #666;">
-                                Found in <strong>${chunksCount}</strong> relevant messages:
-                            </p>
-                            <div class="evidence">
-                                ${decision.evidence
-                        .map(
-                            (e) => `
-                                    <div class="evidence-item">
-                                        <div class="evidence-author">@${escapeHtml(e.user)}</div>
-                                        <div class="evidence-text">"${escapeHtml(e.text)}"</div>
-                                        <div class="evidence-time">${escapeHtml(e.timestamp)}</div>
-                                    </div>
-                                `
-                        )
-                        .join("")}
-                            </div>
-                        `
-                    : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
-                }
-                    </div>
 
                     ${showRawResponse
                     ? `
@@ -572,21 +547,6 @@
                                 <button class="add-action-btn" onclick="openAddActionModal(${decisionId})" style="margin-top: 10px;">+ Add Action Item</button>
                     <button class="delete-decision-btn" onclick="deleteDecision(${decisionId})" style="margin-top: 10px;">🗑️ Delete Decision</button>
                             </div>
-                        </div>
-
-                        <h3 style="margin-top: 30px; margin-bottom: 15px;">📎 Evidence</h3>
-                        <div class="evidence">
-                            ${decision.evidence
-                        .map(
-                            (e) => `
-                                <div class="evidence-item">
-                                    <div class="evidence-author">@${e.user}</div>
-                                    <div class="evidence-text">"${e.text}"</div>
-                                    <div class="evidence-time">${e.timestamp}</div>
-                                </div>
-                            `
-                        )
-                        .join("")}
                         </div>
 
                         <h3 style="margin-top: 30px; margin-bottom: 15px;">📜 Change History</h3>
