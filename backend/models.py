@@ -110,16 +110,33 @@ class DecisionHistory(db.Model):
 
 class Stakeholder(db.Model):
     __tablename__ = 'stakeholders'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     decision_id = db.Column(db.Integer, db.ForeignKey('decisions.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100))
     role = db.Column(db.String(100))
-    
+
     def to_dict(self):
         return {
             'name': self.name,
             'email': self.email,
             'role': self.role
+        }
+
+
+class TrustRating(db.Model):
+    __tablename__ = 'trust_ratings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    decision_id = db.Column(db.Integer, db.ForeignKey('decisions.id'), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)  # 1=Not trustworthy, 2=Somewhat, 3=Trustworthy
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'decision_id': self.decision_id,
+            'rating': self.rating,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None
         }

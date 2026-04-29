@@ -31,7 +31,7 @@ from config import load_config, get_config_options, SUPPORTED_PROVIDERS
 from llm_pipeline import extract_decision, chunks_to_messages, format_decision_response
 
 # Import database models
-from models import db, Decision, DecisionEvidence, ActionItem, DecisionHistory, Stakeholder
+from models import db, Decision, DecisionEvidence, ActionItem, DecisionHistory, Stakeholder, TrustRating
 
 
 app = Flask(__name__, static_folder=str(backend_dir.parents[0] / "frontend"), static_url_path="/static")
@@ -890,6 +890,37 @@ def update_decision_action(decision_id: int, action_id: int):
     db.session.commit()
     return jsonify(action.to_dict()), 200
 
+
+
+@app.route("/trust-rating", methods=["POST"])
+def submit_trust_rating():
+    data = request.get_json()
+    decision_id = data.get("decision_id")
+    rating = data.get("rating")
+
+    if not decision_id or rating not in (1, 2, 3):
+        return jsonify({"error": "decision_id and rating (1, 2, or 3) are required"}), 400
+
+    entry = TrustRating(decision_id=decision_id, rating=rating)
+    db.session.add(entry)
+    db.session.commit()
+    return jsonify({"status": "ok"}), 201
+
+
+@app.route("/analytics/trust", methods=["GET"])
+def trust_analytics():
+    from sqlalchemy import func
+
+    results = db.session.query(
+        func.avg(TrustRating.rating).label("avg_rating"),
+        func.count(TrustRating.id).label("count")
+    ).first()
+
+    return jsonify({
+        "avg_rating": round(float(results.avg_rating), 2) if results.avg_rating else None,
+        "count": results.count,
+        "scale": "1=Not trustworthy, 2=Somewhat trustworthy, 3=Trustworthy"
+    }), 200
 
 
 if __name__ == "__main__":

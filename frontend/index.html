@@ -389,8 +389,29 @@
                     <button class="view-details-btn" onclick="viewDecisionDetails(${decisionId})" style="margin-top: 15px;">
                         📋 View Details & Track
                     </button>
+
+                    <div id="trust-widget-${decisionId}" style="margin-top: 18px; padding: 14px; background: #f9f9fb; border: 1px solid #ececf2; border-radius: 8px;">
+                        <p style="font-size: 13px; color: #444; margin-bottom: 10px; font-weight: 500;">Do you trust this decision?</p>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button onclick="submitTrust(${decisionId}, 1)" style="padding: 6px 12px; border: 1px solid #d0d0d8; border-radius: 6px; background: white; cursor: pointer; font-size: 12px;">Not trustworthy</button>
+                            <button onclick="submitTrust(${decisionId}, 2)" style="padding: 6px 12px; border: 1px solid #d0d0d8; border-radius: 6px; background: white; cursor: pointer; font-size: 12px;">Somewhat trustworthy</button>
+                            <button onclick="submitTrust(${decisionId}, 3)" style="padding: 6px 12px; border: 1px solid #d0d0d8; border-radius: 6px; background: white; cursor: pointer; font-size: 12px;">Trustworthy</button>
+                        </div>
+                    </div>
                 </div>
             `;
+        }
+
+        async function submitTrust(decisionId, rating) {
+            await fetch(`${API_BASE}/trust-rating`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ decision_id: decisionId, rating })
+            });
+            const widget = document.getElementById(`trust-widget-${decisionId}`);
+            if (widget) {
+                widget.innerHTML = '<p style="font-size: 13px; color: #666;">Thanks for your feedback!</p>';
+            }
         }
 
         async function showDashboard() {
