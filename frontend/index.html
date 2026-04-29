@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talk2Decision</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="container">
         <!-- Sidebar -->
@@ -307,8 +309,14 @@
         function displayResult(query, decision, decisionId, chunksCount) {
             const resultsArea = document.getElementById("results-area");
             const hasEvidence = decision.evidence && decision.evidence.length > 0;
-            const confidenceClass = `confidence-${decision.confidence.toLowerCase()}`;
+            const normalizedConfidence = normalizeBadgeValue(decision.confidence, "low");
+            const confidenceClass = `confidence-${normalizedConfidence}`;
             const actionItems = decision.action_items || [];
+            const finalDecision = String(decision.decision || "No clear decision found");
+            const confidenceDisplay = String(decision.confidence || "Low");
+            const hasDecisionDetails = hasEvidence;
+            const parsedNarrative = { raw: String(decision.raw_response || "") };
+            const showRawResponse = false;
 
             resultsArea.innerHTML = `
                 <div class="result">
@@ -316,20 +324,19 @@
                     <div class="decision-box">
                         <div class="decision-label">Final Decision</div>
                         <div class="decision-text">${escapeHtml(finalDecision)}</div>
-                        <span class="confidence-badge">
+                        <span class="confidence-badge ${confidenceClass}">
                             Retrieval Score: ${escapeHtml(confidenceDisplay)}
                         </span>
                     </div>
 
-                    ${
-                        actionItems.length > 0
-                            ? `
+                    ${actionItems.length > 0
+                    ? `
                         <div style="margin-top: 15px;">
                             <div class="decision-label">Action Items</div>
                             <div class="action-items-list">
                                 ${actionItems
-                                    .map(
-                                        (ai) => `
+                        .map(
+                            (ai) => `
                                     <div class="action-item">
                                         <input type="checkbox" disabled />
                                         <span class="action-text">${ai.task}</span>
@@ -337,49 +344,47 @@
                                         ${ai.due_date ? `<span class="action-due">📅 ${ai.due_date}</span>` : ""}
                                     </div>
                                 `
-                                    )
-                                    .join("")}
+                        )
+                        .join("")}
                             </div>
                         </div>
                     `
-                            : ""
-                    }
+                    : ""
+                }
 
-                    ${
-                        hasDecisionDetails
-                            ? `
+                    ${hasDecisionDetails
+                    ? `
                         <div style="margin-top: 15px;">
                             <p style="font-size: 13px; margin-bottom: 10px; color: #666;">
                                 Found in <strong>${chunksCount}</strong> relevant messages:
                             </p>
                             <div class="evidence">
                                 ${decision.evidence
-                                    .map(
-                                        (e) => `
+                        .map(
+                            (e) => `
                                     <div class="evidence-item">
                                         <div class="evidence-author">@${escapeHtml(e.user)}</div>
                                         <div class="evidence-text">"${escapeHtml(e.text)}"</div>
                                         <div class="evidence-time">${escapeHtml(e.timestamp)}</div>
                                     </div>
                                 `
-                                    )
-                                    .join("")}
+                        )
+                        .join("")}
                             </div>
                         `
-                                : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
-                        }
+                    : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
+                }
                     </div>
 
-                    ${
-                        showRawResponse
-                            ? `
+                    ${showRawResponse
+                    ? `
                         <div style="margin-top: 14px; padding: 12px; background: #f9f9fb; border: 1px solid #ececf2; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 6px;">Model response</div>
                             <div style="font-size: 13px; line-height: 1.5; white-space: pre-wrap; color: #2e2e35;">${escapeHtml(parsedNarrative.raw)}</div>
                         </div>
                     `
-                            : ""
-                    }
+                    : ""
+                }
 
                     <button class="view-details-btn" onclick="viewDecisionDetails(${decisionId})" style="margin-top: 15px;">
                         📋 View Details & Track
@@ -419,21 +424,21 @@
                         <h2 style="margin-bottom: 20px;">📊 Decision Dashboard</h2>
                         <div class="dashboard-grid">
                             ${Object.entries(byStatus)
-                                .map(
-                                    ([status, list]) => `
+                        .map(
+                            ([status, list]) => `
                                 <div class="dashboard-column">
                                     <div class="column-header">${status} (${list.length})</div>
                                     <div class="decisions-list">
                                         ${list
-                                            .map(
-                                                (d) => `
+                                    .map(
+                                        (d) => `
                                             <div class="decision-card" onclick="viewDecisionDetails(${d.id})">
                                                 <div class="card-header">
                                                     <div class="card-title">${d.decision.substring(0, 50)}...</div>
                                                     <button class="card-delete-btn" onclick="event.stopPropagation(); deleteDecision(${d.id});" title="Delete decision">🗑️</button>
                                                 </div>
                                                 <div class="card-meta">
-                                                    <span class="priority-badge priority-${d.priority.toLowerCase()}">${d.priority}</span>
+                                                    <span class="priority-badge priority-${normalizeBadgeValue(d.priority, "low")}">${d.priority}</span>
                                                     <span class="category-badge">${d.category}</span>
                                                 </div>
                                                 <div class="card-info">
@@ -442,13 +447,13 @@
                                                 </div>
                                             </div>
                                         `
-                                            )
-                                            .join("")}
+                                    )
+                                    .join("")}
                                     </div>
                                 </div>
                             `
-                                )
-                                .join("")}
+                        )
+                        .join("")}
                         </div>
                     </div>
                 `;
@@ -471,7 +476,7 @@
                 }
 
                 selectedDecision = decision;
-                const confidenceClass = `confidence-${decision.confidence.toLowerCase()}`;
+                const confidenceClass = `confidence-${normalizeBadgeValue(decision.confidence, "low")}`;
 
                 content.innerHTML = `
                     <button class="back-btn" onclick="showDashboard()">← Back to Dashboard</button>
@@ -523,13 +528,12 @@
 
                             <div class="detail-col">
                                 <h3>✅ Action Items (${decision.action_items.length})</h3>
-                                ${
-                                    decision.action_items.length > 0
-                                        ? `
+                                ${decision.action_items.length > 0
+                        ? `
                                     <div class="actions-list">
                                         ${decision.action_items
-                                            .map(
-                                                (ai) => `
+                            .map(
+                                (ai) => `
                                             <div class="action-item-detail">
                                                 <div class="action-title">${ai.task}</div>
                                                 <div class="action-detail-info">
@@ -538,12 +542,12 @@
                                                 </div>
                                             </div>
                                         `
-                                            )
-                                            .join("")}
+                            )
+                            .join("")}
                                     </div>
                                 `
-                                        : `<p style="color: #999; font-size: 13px;">No action items extracted. Add one manually?</p>`
-                                }
+                        : `<p style="color: #999; font-size: 13px;">No action items extracted. Add one manually?</p>`
+                    }
                                 <button class="add-action-btn" onclick="openAddActionModal(${decisionId})" style="margin-top: 10px;">+ Add Action Item</button>
                     <button class="delete-decision-btn" onclick="deleteDecision(${decisionId})" style="margin-top: 10px;">🗑️ Delete Decision</button>
                             </div>
@@ -552,23 +556,23 @@
                         <h3 style="margin-top: 30px; margin-bottom: 15px;">📎 Evidence</h3>
                         <div class="evidence">
                             ${decision.evidence
-                                .map(
-                                    (e) => `
+                        .map(
+                            (e) => `
                                 <div class="evidence-item">
                                     <div class="evidence-author">@${e.user}</div>
                                     <div class="evidence-text">"${e.text}"</div>
                                     <div class="evidence-time">${e.timestamp}</div>
                                 </div>
                             `
-                                )
-                                .join("")}
+                        )
+                        .join("")}
                         </div>
 
                         <h3 style="margin-top: 30px; margin-bottom: 15px;">📜 Change History</h3>
                         <div id="history-container">Loading history...</div>
                     </div>
                 `;
-                
+
                 // Load history asynchronously
                 const historyContainer = document.getElementById("history-container");
                 const historyHtml = await loadDecisionHistory(decisionId);
@@ -591,15 +595,15 @@
                 return `
                     <div class="history-list">
                         ${history
-                            .map(
-                                (h) => `
+                        .map(
+                            (h) => `
                             <div class="history-item">
                                 <strong>${h.field}</strong>: ${h.old_value || "N/A"} → ${h.new_value || "N/A"}
                                 <div style="font-size: 11px; color: #999; margin-top: 3px;">${new Date(h.changed_at).toLocaleString()} by ${h.changed_by}</div>
                             </div>
                         `
-                            )
-                            .join("")}
+                        )
+                        .join("")}
                     </div>
                 `;
             } catch (err) {
@@ -697,10 +701,25 @@
             resultsArea.innerHTML = `<div class="error">❌ ${message}</div>`;
         }
 
+        function normalizeBadgeValue(value, fallback = "low") {
+            const text = String(value ?? "").trim().toLowerCase();
+            return text || fallback;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
         // Load initial file list and available models
         loadLLMOptions().then(() => {
             loadFiles();
         });
     </script>
 </body>
+
 </html>
