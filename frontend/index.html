@@ -6,6 +6,83 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talk2Decision</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Approval UI styles (inline under the decision) - dark theme */
+        .approve-box {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #0b1220;
+            /* dark container */
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .approve-text {
+            color: #e6eef8;
+            /* light text */
+            font-size: 14px;
+        }
+
+        .approve-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(180deg, #1f6feb, #184fbe);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(25, 118, 210, 0.18);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.95;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Evidence hidden container */
+        .evidence-container {
+            margin-top: 12px;
+            display: none;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .show-evidence-btn {
+            margin-top: 12px;
+            background: transparent;
+            border: 1px dashed rgba(255, 255, 255, 0.06);
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #cbd5e1;
+        }
+
+        .show-evidence-btn:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+    </style>
 </head>
 
 <body>
@@ -288,6 +365,7 @@
                         top_k: 8,
                         llm_provider: llmProvider,
                         llm_model: llmModel,
+                        store: false // request preview only; do not store yet
                     }),
                 });
 
@@ -295,6 +373,10 @@
 
                 if (res.ok) {
                     displayResult(query, data.decision, data.decision_id, data.chunks_retrieved);
+                    // Show inline approval UI only for preview (not stored)
+                    if (data.action === 'preview' || !data.decision_id) {
+                        showApprovalDiv(data, query, llmProvider, llmModel);
+                    }
                 } else {
                     showError(`Query failed: ${data.error}`);
                 }
@@ -317,10 +399,11 @@
             const hasDecisionDetails = hasEvidence;
             const parsedNarrative = { raw: String(decision.raw_response || "") };
             const showRawResponse = false;
+            const evidenceUid = `evidence-${Date.now()}`;
 
             resultsArea.innerHTML = `
                 <div class="result">
-                    <h3>Decision Extracted (ID: ${decisionId})</h3>
+                    <h3>Decision Extracted ${decisionId ? `(ID: ${decisionId})` : `(Preview)`}</h3>
                     <div class="decision-box">
                         <div class="decision-label">Final Decision</div>
                         <div class="decision-text">${escapeHtml(finalDecision)}</div>
@@ -355,21 +438,22 @@
                     ${hasDecisionDetails
                     ? `
                         <div style="margin-top: 15px;">
-                            <p style="font-size: 13px; margin-bottom: 10px; color: #666;">
-                                Found in <strong>${chunksCount}</strong> relevant messages:
-                            </p>
-                            <div class="evidence">
-                                ${decision.evidence
+                            <p style="font-size: 13px; margin-bottom: 10px; color: #666;">Found in <strong>${chunksCount}</strong> relevant messages.</p>
+                            <button class="show-evidence-btn" id="show-evidence-btn-${evidenceUid}">Show decision evidence</button>
+                            <div class="evidence-container" id="evidence-container-${evidenceUid}">
+                                <div class="evidence">
+                                    ${decision.evidence
                         .map(
                             (e) => `
-                                    <div class="evidence-item">
-                                        <div class="evidence-author">@${escapeHtml(e.user)}</div>
-                                        <div class="evidence-text">"${escapeHtml(e.text)}"</div>
-                                        <div class="evidence-time">${escapeHtml(e.timestamp)}</div>
-                                    </div>
-                                `
+                                        <div class="evidence-item">
+                                            <div class="evidence-author">@${escapeHtml(e.user)}</div>
+                                            <div class="evidence-text">"${escapeHtml(e.text)}"</div>
+                                            <div class="evidence-time">${escapeHtml(e.timestamp)}</div>
+                                        </div>
+                                    `
                         )
                         .join("")}
+                                </div>
                             </div>
                         `
                     : `<p style="font-size: 13px; color: #999; margin-top: 10px;">No supporting evidence found.</p>`
@@ -386,11 +470,75 @@
                     : ""
                 }
 
-                    <button class="view-details-btn" onclick="viewDecisionDetails(${decisionId})" style="margin-top: 15px;">
-                        📋 View Details & Track
-                    </button>
+                    ${decisionId ? `
+                        <button class="view-details-btn" onclick="viewDecisionDetails(${decisionId})" style="margin-top: 15px;">
+                            📋 View Details & Track
+                        </button>
+                    ` : ''}
                 </div>
             `;
+            // Wire up evidence toggle if present
+            try {
+                const showBtn = document.getElementById(`show-evidence-btn-${evidenceUid}`);
+                const evidenceContainer = document.getElementById(`evidence-container-${evidenceUid}`);
+                if (showBtn && evidenceContainer) {
+                    evidenceContainer.style.display = 'none';
+                    showBtn.onclick = () => {
+                        const isHidden = evidenceContainer.style.display === 'none' || evidenceContainer.style.display === '';
+                        evidenceContainer.style.display = isHidden ? 'block' : 'none';
+                        showBtn.textContent = isHidden ? 'Hide decision evidence' : 'Show decision evidence';
+                    };
+                }
+            } catch (err) {
+                console.error('Evidence wiring error', err);
+            }
+        }
+        // Inline approval UI (appears under the decision)
+        function showApprovalDiv(apiData, query, llmProvider, llmModel) {
+            const resultsArea = document.getElementById('results-area');
+            if (!resultsArea) return;
+
+            // Remove existing approve box if present
+            const existing = resultsArea.querySelector('.approve-box');
+            if (existing) existing.remove();
+
+            const approveDiv = document.createElement('div');
+            approveDiv.className = 'approve-box';
+            approveDiv.innerHTML = `
+                <div class="approve-text">Approve and store decision?</div>
+                <div class="approve-actions">
+                    <button class="btn btn-secondary" id="approve-no">No</button>
+                    <button class="btn btn-primary" id="approve-yes">Yes</button>
+                </div>
+            `;
+
+            // Append under the first result block
+            const resultBlock = resultsArea.querySelector('.result') || resultsArea;
+            resultBlock.appendChild(approveDiv);
+
+            document.getElementById('approve-no').onclick = () => { approveDiv.remove(); };
+
+            document.getElementById('approve-yes').onclick = async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/query`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ file_id: currentFileId, query: query, top_k: 8, llm_provider: llmProvider, llm_model: llmModel, store: true }),
+                    });
+                    const stored = await res.json();
+                    if (res.ok) {
+                        // Refresh display with stored decision
+                        displayResult(query, stored.decision, stored.decision_id, stored.chunks_retrieved);
+                        approveDiv.remove();
+                    } else {
+                        showError(`Store failed: ${stored.error || 'Unknown error'}`);
+                        approveDiv.remove();
+                    }
+                } catch (err) {
+                    showError(`Store error: ${err.message}`);
+                    approveDiv.remove();
+                }
+            };
         }
 
         async function showDashboard() {

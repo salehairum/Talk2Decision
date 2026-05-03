@@ -362,6 +362,8 @@ def query_file():
     top_k = data.get("top_k", 8)
     llm_provider = str(data.get("llm_provider", "")).strip().lower()
     llm_model = str(data.get("llm_model", "")).strip()
+    # If `store` is False, run extraction but do NOT persist to the DB (preview mode)
+    store = bool(data.get("store", True))
 
     if not file_id or not query:
         return jsonify({"error": "Missing file_id or query"}), 400
@@ -417,6 +419,20 @@ def query_file():
 
         decision_response = format_decision_response(decision)
         _log("[QUERY] LLM formatted response:\n" + decision_response)
+        # If caller requested a preview (no DB writes), return the decision immediately
+        if not store:
+            return jsonify(
+                {
+                    "file_id": file_id,
+                    "query": query,
+                    "chunks_retrieved": len(results),
+                    "decision_id": None,
+                    "decision": decision,
+                    "decision_response": decision_response,
+                    "action": "preview",
+                    "message": "Decision preview (not stored)",
+                }
+            ), 200
         
         # Check if this decision already exists
         # Match by: QUERY ALONE (across all files/days)
